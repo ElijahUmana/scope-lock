@@ -13,8 +13,8 @@ import UserButton from '@/components/auth0/user-button';
 const robotoMono = Roboto_Mono({ weight: '400', subsets: ['latin'] });
 const publicSans = Inter({ weight: '400', subsets: ['latin'] });
 
-const TITLE = 'Auth0 Assistant0: An Auth0 + LangChain + Next.js Template';
-const DESCRIPTION = 'Starter template showing how to use Auth0 in LangChain + Next.js projects.';
+const TITLE = 'Scope Lock: Secure AI Agent Authorization with Auth0';
+const DESCRIPTION = 'Progressive authorization for AI agents using Auth0 Token Vault. Every API call is properly authorized with minimal scopes.';
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await auth0.getSession();
@@ -46,7 +46,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 >
                   <Image src="/images/auth0-logo.svg" alt="Auth0 AI Logo" className="h-8" width={143} height={32} />
                 </a>
-                <span className={`${robotoMono.className} text-white text-2xl`}>Assistant0</span>
+                <span className={`${robotoMono.className} text-white text-2xl`}>Scope Lock</span>
                 <nav className="flex gap-1 flex-col md:flex-row">
                   <ActiveLink href="/">Chat</ActiveLink>
                   <ActiveLink href="/profile">Profile</ActiveLink>
@@ -59,7 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   </div>
                 )}
                 <Button asChild variant="header" size="default">
-                  <a href="https://github.com/oktadev/auth0-assistant0" target="_blank">
+                  <a href="https://github.com/oktadev/scope-lock" target="_blank">
                     <Github className="size-3" />
                     <span>Open in GitHub</span>
                   </a>

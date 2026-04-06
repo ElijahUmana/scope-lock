@@ -33,17 +33,17 @@ export default async function Home() {
     <GuideInfoBox>
       <ul>
         <li className="text-l">
-          🤝
+          🔒
           <span className="ml-2">
-            This template showcases a simple chatbot using Vercel&apos;s{' '}
+            Scope Lock demonstrates progressive authorization for AI agents using{' '}
+            <a className="text-blue-500" href="https://auth0.com/docs/secure/tokens/token-vault" target="_blank">
+              Auth0 Token Vault
+            </a>{' '}
+            with the{' '}
             <a className="text-blue-500" href="https://sdk.vercel.ai/docs" target="_blank">
-              AI SDK
-            </a>{' '}
-            in a{' '}
-            <a className="text-blue-500" href="https://nextjs.org/" target="_blank">
-              Next.js
-            </a>{' '}
-            project.
+              Vercel AI SDK
+            </a>
+            .
           </span>
         </li>
         <li className="hidden text-l md:block">
@@ -72,7 +72,7 @@ export default async function Home() {
     <ChatWindow
       endpoint="api/chat"
       emoji="🤖"
-      placeholder={`Hello ${session?.user?.name}, I'm your personal assistant. How can I help you today?`}
+      placeholder={`Hello ${session?.user?.name}, I'm Scope Lock. I can securely access your connected services -- what would you like to do?`}
       emptyStateComponent={InfoCard}
     />
   );
