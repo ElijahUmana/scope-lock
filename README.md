@@ -4,6 +4,8 @@
 
 Your AI agent wants access to Gmail, Calendar, and Tasks. Today, you grant everything or nothing. Scope Lock introduces a third option: the agent starts with **zero permissions** and earns each one individually -- explaining what it needs, why it needs it, and logging every action in a tamper-evident audit trail.
 
+**The hero experience is Progressive Mode** -- a single unified agent that starts with zero scopes and earns each one inline as the conversation naturally requires them. No agent switching, no upfront permissions. Scope Lock also ships Strict Isolation Mode as an advanced toggle, demonstrating hard multi-agent credential boundaries enforced at the SDK layer.
+
 **Live Demo:** [scope-lock-pi.vercel.app](https://scope-lock-pi.vercel.app)
 
 ---
@@ -29,7 +31,15 @@ Agent: "Here are your 10 most recent emails, categorized by priority:
           Suggested action: Create follow-up task
 
         INFO -- Newsletter digest (from: news@service.com)
-          Suggested action: Archive"
+          Suggested action: Archive
+
+        Next Steps -- I can help further with additional permissions:
+        📅 Check calendar -- the meeting email mentions 3pm. I can check
+           your availability. (Requires: calendar.events, GREEN risk)
+        ✅ Create task -- the PR review needs follow-up. I can create a
+           reminder. (Requires: tasks scope, GREEN risk)
+        ✏️ Draft reply -- the meeting email is urgent. I can draft a
+           response. (Requires: gmail.compose, AMBER risk)"
 
 User: "Draft a reply to the first one saying I'll be there"
 
@@ -55,8 +65,8 @@ Every step is visible. Every scope is earned. Every action is logged.
 │  ┌──────────┐  ┌───────────┐  ┌───────────────┐  ┌──────────────┐  │
 │  │   Chat   │  │ Dashboard │  │   Security    │  │   Profile    │  │
 │  │  Window  │  │ (Scores,  │  │ (Matrix,      │  │  (Accounts,  │  │
-│  │  + Agent │  │  Audit,   │  │  Sandbox,     │  │   Sessions)  │  │
-│  │ Selector │  │  Scopes)  │  │  Insights)    │  │              │  │
+│  │  + Quick │  │  Audit,   │  │  Sandbox,     │  │   Sessions)  │  │
+│  │ Actions  │  │  Scopes)  │  │  Insights)    │  │              │  │
 │  └────┬─────┘  └───────────┘  └───────────────┘  └──────────────┘  │
 │       │                                                             │
 │  ┌────▼────────────────────────────────────────────────────────┐    │
@@ -65,7 +75,12 @@ Every step is visible. Every scope is earned. Every action is logged.
 │  └────┬────────────────────────────────────────────────────────┘    │
 │       │                                                             │
 │  ┌────▼────────────────────────────────────────────────────────┐    │
-│  │            Multi-Agent Orchestrator                          │    │
+│  │            Agent Orchestrator                                │    │
+│  │                                                               │    │
+│  │  Progressive Mode (default):                                  │    │
+│  │    Single unified agent, all 8 tools, earns scopes inline     │    │
+│  │                                                               │    │
+│  │  Strict Isolation Mode (toggle):                              │    │
 │  │  ┌──────────┐  ┌──────────┐                                 │    │
 │  │  │  Reader  │  │  Writer  │                                 │    │
 │  │  │  Agent   │  │  Agent   │                                 │    │
@@ -127,16 +142,24 @@ Scope Lock offers two modes, toggled from the chat interface:
 
 | Mode | Default | How It Works |
 |------|---------|-------------|
-| **Progressive Mode** | Yes | A single unified agent with access to ALL tools. Scopes are earned progressively through Token Vault interrupts as the conversation naturally requires them. The agent never tells the user to "switch agents" -- it requests each scope escalation inline. |
+| **Progressive Mode** | Yes | A single unified agent with access to ALL 8 tools. Scopes are earned progressively through Token Vault interrupts as the conversation naturally requires them. The agent never tells the user to "switch agents" -- it requests each scope escalation inline. After triaging emails, it suggests cross-service follow-ups (check calendar, create task, draft reply) that each require a new scope grant. |
 | **Strict Isolation Mode** | No (toggle) | Two separate agents (Reader + Writer) with hard credential boundaries. Each agent can ONLY access its authorized tools. Demonstrates real tool-level enforcement, not prompt engineering. |
 
-Progressive Mode is the default experience -- judges see zero-trust start, progressive scope expansion, and cross-service escalation in a single conversation. Strict Isolation Mode is an advanced toggle that demonstrates the multi-agent credential isolation architecture.
+**Progressive Mode is the hero experience.** Judges see zero-trust start, progressive scope expansion, branded consent cards with data access details and TTL display, quick action buttons, cross-service follow-up suggestions, and the full email triage workflow -- all in a single conversation. Strict Isolation Mode is the advanced toggle that demonstrates multi-agent credential isolation architecture.
 
 ---
 
 ## Features
 
-### 1. Multi-Agent Scope Isolation (Strict Isolation Mode)
+### 1. Progressive Authorization (Default Experience)
+
+The hero feature. A single unified agent starts with **zero permissions** and earns each scope inline as the conversation progresses. The agent explains what it needs, why, and presents a **branded consent card** with the service name, risk level (Read Only / Write Access / Elevated), a human-readable description of exactly what data will be accessed, an expandable "What data will be accessed?" section, and a TTL display showing when the permission will auto-expire.
+
+Quick action buttons in the welcome message let users start immediately: "Triage Inbox", "Today's Schedule", "My Tasks", or "Draft Email". After triage, the agent suggests cross-service follow-ups (check calendar, create task, draft reply) -- each requiring a new scope grant, demonstrating progressive expansion across Google services.
+
+The consent popup handles timeout (60-second auto-expiry with countdown), cancel/dismiss, and popup-blocked states gracefully.
+
+### 2. Multi-Agent Scope Isolation (Strict Isolation Mode)
 
 Two specialized agents with **hard credential boundaries** -- not prompt-level restrictions, but actual tool-level enforcement. Each agent is constructed with only its authorized tools passed to the LLM. The Reader Agent physically cannot invoke `gmailDraftTool` because the tool does not exist in its execution context.
 
@@ -145,9 +168,11 @@ Two specialized agents with **hard credential boundaries** -- not prompt-level r
 | **Reader** | LOW | `gmailSearchTool`, `getCalendarEventsTool`, `getTasksTool`, `getUserInfoTool` | `thread` (shared per-session) | Writer |
 | **Writer** | MEDIUM | `gmailDraftTool`, `createTasksTool`, `deleteTaskTool`, `completeTaskTool` | `tool-call` (isolated per-invocation) | None |
 
+8 tools total: 4 reader (GREEN risk) + 4 writer (AMBER risk).
+
 **Isolation mechanism:** `Object.entries(allTools).filter(([name]) => allowedToolNames.includes(name))` -- tools are physically excluded from the `streamText()` call.
 
-### 2. Risk-Tier Policy Engine
+### 3. Risk-Tier Policy Engine
 
 Every tool call is classified before execution. The policy engine maps each tool to a risk level, required action, and authentication method.
 
@@ -158,7 +183,7 @@ Every tool call is classified before execution. The policy engine maps each tool
 
 Unknown tools default to AMBER -- the engine is fail-safe, never fail-open.
 
-### 3. Scope Presets (Privacy Modes)
+### 4. Scope Presets (Privacy Modes)
 
 Users control the agent's maximum capability through three presets that gate which tools are available to the LLM:
 
@@ -170,7 +195,7 @@ Users control the agent's maximum capability through three presets that gate whi
 
 Presets are enforced as an intersection with agent tools -- the LLM receives only tools that appear in **both** the agent's tool list **and** the preset's allowed list.
 
-### 4. SHA-256 Hash-Chained Audit Trail
+### 5. SHA-256 Hash-Chained Audit Trail
 
 Every tool call produces an immutable audit entry chained via SHA-256 hashes. Each entry records:
 
@@ -184,7 +209,7 @@ Every tool call produces an immutable audit entry chained via SHA-256 hashes. Ea
 
 The chain is verifiable: `verifyAuditChain()` walks every entry, recomputes hashes, and confirms no tampering occurred. The genesis hash is `0x00...00` (64 zeros).
 
-### 5. Anomaly Detection Engine
+### 6. Anomaly Detection Engine
 
 Analyzes the audit trail after each tool call to detect four categories of suspicious behavior:
 
@@ -197,7 +222,7 @@ Analyzes the audit trail after each tool call to detect four categories of suspi
 
 Alerts are persisted per-user (capped at 100) and surfaced in the dashboard.
 
-### 6. Scope TTL and Auto-Revocation
+### 7. Scope TTL and Auto-Revocation
 
 Scope grants expire automatically based on risk level:
 
@@ -209,7 +234,7 @@ Scope grants expire automatically based on risk level:
 
 The API supports manual revocation (`DELETE /api/scope-grants`), renewal (`POST /api/scope-grants`), and batch cleanup of all expired grants.
 
-### 7. Per-Agent Rate Limiting
+### 8. Per-Agent Rate Limiting
 
 Rate limits are tuned by agent risk level -- higher-risk agents get stricter limits:
 
@@ -219,7 +244,7 @@ Rate limits are tuned by agent risk level -- higher-risk agents get stricter lim
 | Writer | 15 | 5 minutes | Writes mutate state |
 | Default | 30 | 5 minutes | No agent selected |
 
-### 8. Scope Dependency Resolver
+### 9. Scope Dependency Resolver
 
 Before executing a set of tools, the resolver computes the full authorization plan:
 
@@ -234,7 +259,7 @@ const plan = resolveScopes(['gmailSearchTool', 'gmailDraftTool', 'deleteTaskTool
 // => { totalScopes: 3, maxRiskLevel: 'AMBER', requiresStepUp: false, estimatedConnections: 1 }
 ```
 
-### 9. Agent Orchestrator with Delegation Chains
+### 10. Agent Orchestrator with Delegation Chains
 
 When users switch between agents (Reader -> Writer), each transition is recorded as a `DelegationRequest` with:
 
@@ -246,7 +271,7 @@ When users switch between agents (Reader -> Writer), each transition is recorded
 
 The delegation chain is append-only and tamper-evident -- creating a verifiable trail of every privilege escalation in the session.
 
-### 10. Auth0 Actions (Post-Login + Token Exchange)
+### 11. Auth0 Actions (Post-Login + Token Exchange)
 
 Two reference Auth0 Actions demonstrate production integration patterns:
 
@@ -254,7 +279,7 @@ Two reference Auth0 Actions demonstrate production integration patterns:
 
 **Token Exchange Action** -- Intercepts Token Vault credential exchanges, logs every scope request for audit, and blocks high-risk scopes (compose, send, buy) unless step-up authentication was completed within a 5-minute window.
 
-### 11. RFC 9396 Rich Authorization Requests
+### 12. RFC 9396 Rich Authorization Requests
 
 Standard CIBA sends a flat binding message. Scope Lock implements structured `RichAuthorizationDetail` objects per RFC 9396, including:
 
@@ -265,11 +290,11 @@ Standard CIBA sends a flat binding message. Scope Lock implements structured `Ri
 
 This enables PSD2 compliance, Open Banking interop, and machine-readable audit trails for financial operations.
 
-### 12. Step-Up Authentication (CIBA)
+### 13. Step-Up Authentication (CIBA)
 
 RED-tier operations trigger Client-Initiated Backchannel Authentication through Auth0 Guardian. The agent blocks until the user explicitly approves or denies from their mobile device. The binding message contains transaction details ("Do you want to buy 2 AirPods?"). No silent financial transactions.
 
-### 13. Credential Lifecycle Management
+### 14. Credential Lifecycle Management
 
 `credentialsContext` is the core security primitive controlling how long credentials persist:
 
@@ -280,9 +305,17 @@ RED-tier operations trigger Client-Initiated Backchannel Authentication through 
 
 Read operations use `thread` for performance. Write operations use `tool-call` for isolation. This is a deliberate security architecture, not a default.
 
-### 14. Automated Security Test Suite
+### 15. Demo Data Seeding
 
-`GET /api/security-test` runs 12 security assertions across 4 categories:
+First-time dashboard visitors see meaningful data immediately. The `/api/seed-demo` endpoint seeds 10 audit entries spanning ~55 minutes (Gmail reads, Calendar views, Task reads, a draft creation, and a task creation), 4 scope request timeline entries, and a Reader-to-Writer delegation chain. All seeded entries are tagged with a `[demo]` prefix so they are distinguishable from real activity.
+
+### 16. Onboarding Overlay
+
+A four-step guided walkthrough for first-time users explaining zero-trust start, progressive authorization, scope presets, and the security dashboard. Persisted via localStorage so it only shows once.
+
+### 17. Automated Security Test Suite
+
+`GET /api/security-test` runs 14 security assertions across 4 categories:
 
 **Isolation (5 assertions)**
 - Reader Agent cannot access write tools
@@ -301,8 +334,9 @@ Read operations use `thread` for performance. Write operations use `tool-call` f
 - Gmail Read uses thread-scoped credentials
 - Gmail Write uses per-call isolation
 
-**Audit (1 assertion)**
-- Audit store is functional (write + read verification + risk level field)
+**Audit (2 assertions)**
+- Audit store is functional (write + read verification)
+- Audit entries include risk level field
 
 ---
 
@@ -310,7 +344,7 @@ Read operations use `thread` for performance. Write operations use `tool-call` f
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/chat` | Streaming chat with tool calling. Accepts `?agentId=reader\|writer` and `?preset=lockdown\|privacy\|productivity` |
+| `POST` | `/api/chat` | Streaming chat with tool calling. Progressive Mode when no `agentId` param; Strict Isolation with `?agentId=reader\|writer`. Preset via `?preset=lockdown\|privacy\|productivity` |
 | `GET` | `/api/audit` | Fetch audit trail entries and anomaly alerts for the authenticated user |
 | `GET` | `/api/audit/verify` | Verify the SHA-256 hash chain integrity of the audit trail |
 | `GET` | `/api/agents` | Introspect all agent profiles with tools, policy rules, rate limits, and preset compatibility |
@@ -320,7 +354,8 @@ Read operations use `thread` for performance. Write operations use `tool-call` f
 | `POST` | `/api/scope-grants` | Renew an existing scope grant |
 | `DELETE` | `/api/scope-grants` | Revoke a specific connection's scope grant |
 | `POST` | `/api/scope-plan` | Resolve the authorization plan for a set of tool names |
-| `GET` | `/api/security-test` | Run 12 automated security assertions |
+| `GET` | `/api/security-test` | Run 14 automated security assertions |
+| `POST` | `/api/seed-demo` | Seed demo data for first-time dashboard visitors |
 | `GET` | `/api/token-info` | Inspect JWT claims and token presence (never exposes raw tokens) |
 
 ---
@@ -329,27 +364,35 @@ Read operations use `thread` for performance. Write operations use `tool-call` f
 
 | Route | Description |
 |-------|-------------|
-| `/` | Landing page with feature cards, progressive auth flow diagram, and agent selector |
-| `/dashboard` | Security score, connected services, audit trail, scope request timeline, policy rules |
-| `/security` | Tabbed view: Authorization Matrix, Security Sandbox (12 assertions), Architecture Insights |
+| `/` | Landing page (unauthenticated) with feature cards, progressive auth flow diagram; chat interface (authenticated) with agent selector, quick action buttons, and onboarding overlay |
+| `/chat` | Redirects to `/` (chat is the home page for authenticated users) |
+| `/dashboard` | Security score, connected services, audit trail, scope request timeline, policy rules, demo data seeding |
+| `/security` | Tabbed view: Authorization Matrix, Security Sandbox (14 assertions), Architecture Insights |
+| `/matrix` | Redirects to `/security?tab=matrix` |
+| `/sandbox` | Redirects to `/security?tab=tests` |
+| `/insights` | Redirects to `/security?tab=insights` |
 | `/profile` | Connected accounts and session management |
 
 ---
 
 ## Test Coverage
 
-163 passing tests across 8 test files:
+300 passing tests across 12 test files:
 
 | Test File | Tests | What It Covers |
 |-----------|-------|---------------|
-| `policy-engine.test.ts` | 30 | GREEN/AMBER/RED classification, unknown tool defaults, all rules have required fields |
-| `agents.test.ts` | 34 | Agent tool access, isolation boundaries, `cannotAccess` declarations, no tool/cannotAccess overlap |
-| `audit.test.ts` | 12 | Hash chaining, genesis hash, user isolation, chronological order, 200-entry cap, chain verification |
-| `anomaly-detection.test.ts` | 9 | Rapid escalation, high frequency, alert accumulation, alert clearing |
-| `scope-presets.test.ts` | 17 | Lockdown/Privacy/Productivity presets, risk thresholds, tool filtering |
-| `scope-presets-integration.test.ts` | 9 | Agent x Preset intersection (Reader+Lockdown=0 tools, Writer+Privacy=0 tools, etc.) |
-| `scope-resolver.test.ts` | 14 | Scope aggregation, deduplication, max risk computation, step-up detection, plan formatting |
-| `gmail-parser.test.ts` | 38 | JSON/raw/HTML parsing, missing headers, malformed input, snippet truncation, LangChain format |
+| `chat-route-integration.test.ts` | 49 | Progressive vs strict mode tool filtering, preset enforcement, agent switching, rate limiting, system prompt generation |
+| `agent-preset-matrix.test.ts` | 44 | Full 2-agent x 3-preset matrix (6 combinations), tool set intersection, cannotAccess enforcement |
+| `policy-engine.test.ts` | 38 | GREEN/AMBER/RED classification, unknown tool defaults, all 8 active rules have required fields |
+| `agents.test.ts` | 31 | Agent tool access, isolation boundaries, `cannotAccess` declarations, deleteTaskTool/completeTaskTool in Writer |
+| `gmail-parser.test.ts` | 23 | JSON/raw/HTML parsing, missing headers, malformed input, snippet truncation, LangChain format |
+| `audit.test.ts` | 21 | Hash chaining, genesis hash, user isolation, chronological order, 200-entry cap, chain verification |
+| `scope-ttl.test.ts` | 19 | TTL by risk level, grant/renew/revoke lifecycle, expiry checks, batch cleanup |
+| `scope-resolver.test.ts` | 19 | Scope aggregation, deduplication, max risk computation, step-up detection, plan formatting |
+| `scope-presets.test.ts` | 19 | Lockdown/Privacy/Productivity presets, risk thresholds, tool filtering, 8 tools in Productivity |
+| `anomaly-detection.test.ts` | 16 | Rapid escalation, high frequency, scope hopping, unusual scope, alert accumulation and clearing |
+| `rate-limiter.test.ts` | 14 | Per-agent rate limits (Reader 50, Writer 15, default 30), sliding window, cooldown |
+| `scope-presets-integration.test.ts` | 7 | Agent x Preset intersection (Reader+Lockdown=0 tools, Writer+Privacy=0 tools, etc.) |
 
 Run tests:
 ```bash
@@ -436,8 +479,8 @@ curl http://localhost:3000/api/security-test | jq
 
 | Feature | Implementation |
 |---------|---------------|
-| Progressive authorization | Agent starts with zero permissions; each scope requested individually with explanation |
-| Multi-agent credential isolation | 2 agents with hard tool boundaries -- tools physically excluded from LLM context |
+| Progressive authorization (default) | Agent starts with zero permissions; each scope requested individually with branded consent card showing data access, risk level, and TTL |
+| Multi-agent credential isolation | 2 agents with hard tool boundaries -- tools physically excluded from LLM context (8 tools: 4 reader + 4 writer) |
 | Risk-tier policy engine | GREEN/AMBER/RED classification with auto-approve, warn, and step-up actions |
 | Credential lifecycle (`credentialsContext`) | `thread` for reads (performance), `tool-call` for writes (isolation) |
 | Token Vault | RFC 8693 token exchange -- agent never sees raw OAuth tokens |
@@ -445,46 +488,55 @@ curl http://localhost:3000/api/security-test | jq
 | Scope TTL + auto-revocation | Time-based expiry (30m/10m/5m) enforced per risk level |
 | Anomaly detection | 4 detection patterns: rapid escalation, high frequency, scope hopping, unusual scope |
 | Rate limiting | Per-agent limits tuned by risk level (50/15 calls per 5 minutes) |
-| 12 automated security assertions | Isolation, policy, credential, and audit assertions verified on every request |
+| 14 automated security assertions | Isolation, policy, credential, and audit assertions verified on every request |
 
 ### 2. User Control
 
 | Feature | Implementation |
 |---------|---------------|
-| Scope Presets | Lockdown (zero tools), Privacy (read-only), Productivity (full access) |
-| Permission Dashboard | Security score, connected services, scope badges, revoke buttons |
-| Active Scopes Bar | Real-time zero-trust display showing current authorization state |
-| Branded authorization cards | Custom consent UI with service name, risk level, data access description |
+| Scope Presets | Lockdown (zero tools), Privacy (read-only), Productivity (full access with 8 tools) |
+| Permission Dashboard | Security score, connected services, scope badges, revoke buttons, demo data seeding |
+| Active Scopes Bar | Real-time zero-trust display showing current authorization state with read/write level indicators |
+| Branded authorization cards | Custom consent UI with service name, risk level, data access description, expandable detail section, and TTL display |
+| Quick action buttons | Contextual suggestions per agent/mode: Triage Inbox, Today's Schedule, My Tasks, Draft Email |
+| Follow-up suggestions | After triage, agent suggests cross-service actions (calendar, tasks, draft) each requiring new scopes |
+| Popup timeout/cancel | 60-second countdown with auto-expiry, cancel/dismiss buttons, popup-blocked detection with retry |
+| Onboarding overlay | Four-step guided walkthrough for first-time users (persisted via localStorage) |
 | Manual scope revocation | `DELETE /api/scope-grants` to revoke any connection instantly |
-| Agent selection | User chooses which agent (Reader/Writer) to interact with |
+| Agent selection | User chooses Progressive Mode or Strict Isolation (Reader/Writer) |
 | Audit trail visibility | Every tool call visible with scopes, risk level, and outcome |
 
 ### 3. Technical Execution
 
 | Feature | Implementation |
 |---------|---------------|
-| Auth0 AI SDK integration | `withTokenVault()` for 3 Google service connections, `withAsyncAuthorization()` for CIBA |
+| Auth0 AI SDK integration | `withTokenVault()` for 4 Google service connections (Gmail read, Gmail write, Calendar, Tasks), `withAsyncAuthorization()` for CIBA |
 | Vercel AI SDK streaming | `streamText` + `createUIMessageStream` + `withInterruptions` for interrupt-driven consent |
 | RFC 8693 token exchange | Token Vault credential brokering without exposing raw tokens |
 | RFC 9396 Rich Authorization Requests | Structured authorization details for financial operations |
 | SHA-256 hash chains | Tamper-evident audit trail and delegation chains |
 | Scope dependency resolver | Computes minimal authorization plans with risk aggregation |
-| 163 passing tests | 8 test files covering policy, isolation, audit, anomaly detection, presets, resolver |
-| 12 API endpoints | Full REST API for all security subsystems |
+| 300 passing tests | 12 test files covering policy, isolation, audit, anomaly detection, presets, resolver, rate limiter, TTL, agent-preset matrix, chat route integration |
+| 13 API endpoints | Full REST API for all security subsystems including demo data seeding |
 | Auth0 Actions | Post-Login token enrichment + Token Exchange scope gating |
 
 ### 4. Design
 
 | Feature | Implementation |
 |---------|---------------|
-| Dark-mode UI | Consistent design across all pages |
+| Dark-mode UI | Consistent design across all pages with error boundaries and recovery buttons |
 | Security score gauge | Computed 0-100 score based on active scopes and risk profile |
 | Color-coded scope badges | Green (read), amber (write), red (admin) |
-| Agent selector cards | Visual risk indicators per agent |
+| Agent selector cards | Progressive Mode (default) and Strict Isolation toggle with visual risk indicators |
+| Quick action buttons | Contextual cards per mode: Triage Inbox, Today's Schedule, My Tasks, Draft Email |
 | Scope Presets selector | Three-mode toggle with color-coded states |
-| Active Scopes Bar | Progressive zero-trust to authorized visualization |
-| Branded consent cards | Custom authorization UI replacing generic OAuth popups |
+| Active Scopes Bar | Progressive zero-trust to authorized visualization with per-service read/write indicators |
+| Branded consent cards | Custom authorization UI with data access details, TTL display, and expandable data breakdown |
+| Popup timeout/cancel | 60-second countdown, auto-expiry, dismiss/retry, popup-blocked handling |
+| Onboarding overlay | Four-step guided walkthrough for first-time users |
+| Demo data seeding | Realistic audit entries, scope requests, and delegation chains on first dashboard visit |
 | Security tabs | Matrix, Sandbox, and Insights in a unified security view |
+| Error boundaries | Every page wrapped with recovery buttons (`Dashboard`, `Security`, `Profile`, `Chat`) |
 
 ### 5. Potential Impact
 
