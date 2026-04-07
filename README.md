@@ -10,49 +10,18 @@ Your AI agent wants access to Gmail, Calendar, and Tasks. Today, you grant every
 
 ---
 
-## The Use Case: Email Triage Agent
+## How It Works
 
-A busy professional asks their AI assistant to triage their inbox. Here is what happens:
+One conversation. Four scope escalations. Three Google services. Zero upfront permissions.
 
 ```
-User: "Show me my recent emails"
-
-Agent: "I'll need read-only access to your Gmail (gmail.readonly scope).
-        This is brokered through Auth0 Token Vault -- I never see your credentials."
-        [Branded authorization card: Google | Read Only | GREEN risk]
-        [User approves]
-
-Agent: "Here are your 10 most recent emails, categorized by priority:
-
-        URGENT -- Meeting moved to 3pm (from: boss@company.com)
-          Suggested action: Reply to confirm
-
-        ACTION -- PR review requested (from: dev@team.com)
-          Suggested action: Create follow-up task
-
-        INFO -- Newsletter digest (from: news@service.com)
-          Suggested action: Archive
-
-        Next Steps -- I can help further with additional permissions:
-        📅 Check calendar -- the meeting email mentions 3pm. I can check
-           your availability. (Requires: calendar.events, GREEN risk)
-        ✅ Create task -- the PR review needs follow-up. I can create a
-           reminder. (Requires: tasks scope, GREEN risk)
-        ✏️ Draft reply -- the meeting email is urgent. I can draft a
-           response. (Requires: gmail.compose, AMBER risk)"
-
-User: "Draft a reply to the first one saying I'll be there"
-
-Agent: "This requires WRITE access to Gmail (gmail.compose scope).
-        This is a higher-privilege operation -- AMBER risk level.
-        Credentials will be isolated per-invocation for security."
-        [Branded authorization card: Google | Write Access | AMBER risk]
-        [User approves]
-
-Agent: "Draft created: 'Thanks, I'll be there at 3pm.'"
+"Triage my inbox"     → gmail.readonly requested (GREEN) → approved → emails categorized
+"Draft a reply"       → gmail.compose requested (AMBER)  → approved → draft created
+"Am I free at 3pm?"   → calendar.events requested (GREEN) → approved → availability checked
+"Create a follow-up"  → tasks requested (GREEN)           → approved → task created
 ```
 
-Every step is visible. Every scope is earned. Every action is logged.
+Each scope request shows a branded consent card with the service name, risk level, what data will be accessed, and when the permission expires. The Active Scopes Bar fills progressively. The audit trail records every decision with SHA-256 hash chains.
 
 ---
 
