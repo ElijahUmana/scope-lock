@@ -17,7 +17,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     name: 'Reader Agent',
     description: 'I can read your emails, calendar, and tasks. I never modify anything.',
     icon: '📖',
-    tools: ['gmailSearchTool', 'getCalendarEventsTool', 'getTasksTool', 'getUserInfoTool', 'listRepositories', 'listGitHubEvents'],
+    tools: ['gmailSearchTool', 'getCalendarEventsTool', 'getTasksTool', 'getUserInfoTool'],
     riskLevel: 'low',
     credentialsContext: 'thread',
     systemPromptAddition:

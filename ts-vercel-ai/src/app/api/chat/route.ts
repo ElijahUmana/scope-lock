@@ -149,8 +149,9 @@ const ALL_TOOLS: Record<string, any> = {
   getTasksTool,
   createTasksTool,
   shopOnlineTool,
-  listRepositories,
-  listGitHubEvents,
+  // GitHub disabled: Auth0 GitHub connection needs Token Vault purpose configured
+  // listRepositories,
+  // listGitHubEvents,
 };
 
 const ALL_TOOL_NAMES = Object.keys(ALL_TOOLS);

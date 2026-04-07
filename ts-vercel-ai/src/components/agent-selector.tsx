@@ -111,11 +111,12 @@ export function AgentSelector({ userName, infoCard }: { userName: string; infoCa
                   <Shield className="w-4 h-4" />
                   Select an agent — each has isolated credential boundaries
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {AGENT_PROFILES.map((profile) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {AGENT_PROFILES.filter((p) => p.id !== 'commerce').map((profile) => (
                     <AgentCard key={profile.id} profile={profile} selected={agentId === profile.id} onSelect={() => setAgentId(profile.id)} />
                   ))}
                 </div>
+                <p className="text-xs text-white/30 mt-2">Commerce Agent (CIBA step-up auth) available when Auth0 Guardian is configured.</p>
               </div>
             )}
           </div>
