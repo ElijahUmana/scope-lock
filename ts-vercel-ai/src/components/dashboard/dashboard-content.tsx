@@ -29,6 +29,7 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 
 import ScopeTopology from './scope-topology';
+import ConsentTimeline from './consent-timeline';
 
 import {
   ConnectedAccount,
@@ -955,6 +956,15 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Consent History Timeline */}
+      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
+        <div className="flex items-center gap-2 mb-6">
+          <Clock className="h-5 w-5 text-white/80" />
+          <h2 className="text-lg font-semibold text-white">Consent History Timeline</h2>
+        </div>
+        <ConsentTimeline scopeRequests={scopeRequests} />
       </div>
     </div>
   );

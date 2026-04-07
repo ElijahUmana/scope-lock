@@ -50,6 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <nav className="flex gap-1 flex-col md:flex-row">
                   <ActiveLink href="/">Chat</ActiveLink>
                   <ActiveLink href="/dashboard">Dashboard</ActiveLink>
+                  <ActiveLink href="/matrix">Matrix</ActiveLink>
                   <ActiveLink href="/insights">Insights</ActiveLink>
                   <ActiveLink href="/profile">Profile</ActiveLink>
                 </nav>
