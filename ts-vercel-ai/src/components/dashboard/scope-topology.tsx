@@ -4,11 +4,8 @@ import {
   Mail,
   Calendar,
   ListTodo,
-  ShoppingCart,
-  User,
   Search,
   Shield,
-  ShieldCheck,
 } from 'lucide-react';
 
 // --- Topology data types ---
@@ -70,17 +67,6 @@ const AGENTS: TopologyAgent[] = [
     lineClass: 'bg-amber-500/40',
     active: true,
   },
-  {
-    id: 'commerce',
-    name: 'Commerce Agent',
-    icon: '\u{1F6D2}',
-    colorClass: 'text-red-300',
-    bgClass: 'bg-red-500/10',
-    borderClass: 'border-red-500/30',
-    dotClass: 'bg-red-400',
-    lineClass: 'bg-red-500/40',
-    active: true,
-  },
 ];
 
 const TOOLS: TopologyTool[] = [
@@ -131,16 +117,6 @@ const TOOLS: TopologyTool[] = [
     serviceId: 'google-oauth2',
     riskColor: 'bg-amber-500/40',
   },
-  // Commerce tools
-  {
-    id: 'shop',
-    label: 'Shop',
-    icon: <ShoppingCart className="h-3.5 w-3.5 text-yellow-400" />,
-    scope: 'product:buy',
-    agentId: 'commerce',
-    serviceId: 'ciba-auth',
-    riskColor: 'bg-red-500/40',
-  },
 ];
 
 const SERVICES: TopologyService[] = [
@@ -153,15 +129,6 @@ const SERVICES: TopologyService[] = [
     borderClass: 'border-red-500/30',
     active: true,
   },
-  {
-    id: 'ciba-auth',
-    label: 'CIBA Auth',
-    icon: <ShieldCheck className="h-4 w-4" />,
-    colorClass: 'text-cyan-300',
-    bgClass: 'bg-cyan-500/10',
-    borderClass: 'border-cyan-500/30',
-    active: true,
-  },
 ];
 
 // --- Edge label mapping (agent -> tool) ---
@@ -169,7 +136,6 @@ const SERVICES: TopologyService[] = [
 const EDGE_LABELS: Record<string, string> = {
   reader: 'read',
   writer: 'write',
-  commerce: 'ciba',
 };
 
 // --- Component ---
@@ -340,10 +306,6 @@ export default function ScopeTopology() {
         <div className="flex items-center gap-1.5">
           <span className="h-2 w-6 rounded-full bg-amber-500/40" />
           <span>Write (warn &amp; proceed)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-2 w-6 rounded-full bg-red-500/40" />
-          <span>Financial (step-up auth)</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />

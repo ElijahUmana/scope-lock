@@ -22,6 +22,7 @@ export type TokenVaultAuthProps = {
     returnTo?: string;
   };
   onFinish?: () => void;
+  onCancel?: () => void;
   connectWidget: {
     icon?: ReactNode;
     title: string;

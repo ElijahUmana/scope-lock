@@ -6,7 +6,7 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { auth0 } from '@/lib/auth0';
 
 const FEATURES = [
-  { icon: Shield, title: 'Multi-Agent Isolation', description: 'Reader, Writer, and Commerce agents with isolated credential boundaries. Each agent can ONLY access its authorized tools.', color: 'border-blue-500/30 bg-blue-500/10' },
+  { icon: Shield, title: 'Multi-Agent Isolation', description: 'Reader and Writer agents with isolated credential boundaries. Each agent can ONLY access its authorized tools.', color: 'border-blue-500/30 bg-blue-500/10' },
   { icon: Zap, title: 'Risk-Tier Policy Engine', description: 'GREEN (auto-approve reads), AMBER (warn on writes), RED (require CIBA step-up). Every tool call classified.', color: 'border-amber-500/30 bg-amber-500/10' },
   { icon: Lock, title: 'Scope Presets', description: 'Lockdown (zero tools), Privacy (read-only), Productivity (full access). User controls what the agent can do.', color: 'border-purple-500/30 bg-purple-500/10' },
   { icon: Eye, title: 'Real-Time Audit Trail', description: 'SHA-256 hash-chained audit log. Every API call recorded with scopes, risk level, and credential context.', color: 'border-emerald-500/30 bg-emerald-500/10' },

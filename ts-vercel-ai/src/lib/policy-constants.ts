@@ -19,16 +19,17 @@ export const POLICY_RULES: PolicyRule[] = [
   { toolName: 'gmailSearchTool', level: 'GREEN', action: 'auto-approve', reason: 'Read-only Gmail search' },
   { toolName: 'getCalendarEventsTool', level: 'GREEN', action: 'auto-approve', reason: 'Read-only calendar access' },
   { toolName: 'getTasksTool', level: 'GREEN', action: 'auto-approve', reason: 'Read-only tasks access' },
-  { toolName: 'listRepositories', level: 'GREEN', action: 'auto-approve', reason: 'Read-only GitHub repo listing' },
-  { toolName: 'listGitHubEvents', level: 'GREEN', action: 'auto-approve', reason: 'Read-only GitHub events listing' },
-  { toolName: 'listSlackChannels', level: 'GREEN', action: 'auto-approve', reason: 'Read-only Slack channels listing' },
   { toolName: 'getUserInfoTool', level: 'GREEN', action: 'auto-approve', reason: 'Read-only user profile access' },
 
   // AMBER — write operations (warn-and-proceed)
   { toolName: 'gmailDraftTool', level: 'AMBER', action: 'warn-and-proceed', reason: 'Write operation — creates Gmail draft' },
   { toolName: 'createTasksTool', level: 'AMBER', action: 'warn-and-proceed', reason: 'Write operation — creates Google Task' },
 
-  // RED — destructive/financial operations (require-step-up)
+  // Disabled features — kept for policy engine evaluation/tests but hidden from display.
+  // GitHub, Slack, and Commerce integrations are not currently enabled.
+  { toolName: 'listRepositories', level: 'GREEN', action: 'auto-approve', reason: 'Read-only GitHub repo listing' },
+  { toolName: 'listGitHubEvents', level: 'GREEN', action: 'auto-approve', reason: 'Read-only GitHub events listing' },
+  { toolName: 'listSlackChannels', level: 'GREEN', action: 'auto-approve', reason: 'Read-only Slack channels listing' },
   { toolName: 'shopOnlineTool', level: 'RED', action: 'require-step-up', reason: 'Financial transaction — online purchase' },
 ];
 

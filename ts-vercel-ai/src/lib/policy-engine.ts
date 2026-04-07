@@ -49,9 +49,13 @@ export function evaluatePolicy(toolName: string, _args: unknown): PolicyDecision
   };
 }
 
+// Tools that are disabled in the UI but kept in the engine for evaluation/tests
+const HIDDEN_TOOLS = new Set(['listRepositories', 'listGitHubEvents', 'listSlackChannels', 'shopOnlineTool']);
+
 /**
- * Return all policy rules for display in the dashboard.
+ * Return policy rules for display in the dashboard.
+ * Excludes disabled tools (GitHub, Slack, Commerce) that are not active features.
  */
 export function getPolicyRules(): PolicyRule[] {
-  return [...POLICY_RULES];
+  return POLICY_RULES.filter((rule) => !HIDDEN_TOOLS.has(rule.toolName));
 }

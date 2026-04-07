@@ -8,7 +8,6 @@ import {
   Mail,
   Calendar,
   ListTodo,
-  ShoppingCart,
   User,
   Search,
 } from 'lucide-react';
@@ -65,15 +64,6 @@ const AGENTS: AgentInfo[] = [
     colorClass: 'text-amber-300',
     bgClass: 'bg-amber-500/10',
     borderClass: 'border-amber-500/30',
-  },
-  {
-    id: 'commerce',
-    name: 'Commerce',
-    icon: '\u{1F6D2}',
-    tools: ['shopOnlineTool'],
-    colorClass: 'text-red-300',
-    bgClass: 'bg-red-500/10',
-    borderClass: 'border-red-500/30',
   },
 ];
 
@@ -138,16 +128,6 @@ const TOOLS: ToolInfo[] = [
     credentialsContext: 'tool-call',
     connection: 'google-oauth2',
   },
-  {
-    id: 'shopOnlineTool',
-    label: 'Shop Online',
-    icon: <ShoppingCart className="h-4 w-4 text-yellow-400" />,
-    riskLevel: 'RED',
-    action: 'require-step-up',
-    requiredScopes: ['product:buy'],
-    credentialsContext: 'tool-call',
-    connection: 'ciba-auth',
-  },
 ];
 
 const PRESETS: PresetInfo[] = [
@@ -179,7 +159,6 @@ const PRESETS: PresetInfo[] = [
       'getUserInfoTool',
       'gmailDraftTool',
       'createTasksTool',
-      'shopOnlineTool',
     ],
     color: 'amber',
   },

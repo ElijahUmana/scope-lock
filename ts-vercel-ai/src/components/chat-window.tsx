@@ -212,9 +212,142 @@ function ActiveScopesBar({ messages }: { messages: UIMessage[] }) {
   );
 }
 
+function QuickActions({
+  agentId,
+  presetId,
+  onAction,
+}: {
+  agentId: string | undefined;
+  presetId: string;
+  onAction: (prompt: string) => void;
+}) {
+  const isProgressive = !agentId;
+  const suggestions = isProgressive
+    ? AGENT_SUGGESTIONS.progressive
+    : (AGENT_SUGGESTIONS[agentId] ?? AGENT_SUGGESTIONS.reader);
+
+  // In lockdown mode, no actions make sense
+  if (presetId === 'lockdown') return null;
+
+  // Filter out "Draft Email" for reader agents (no write tools)
+  const filtered = suggestions.filter((s) => {
+    if (agentId === 'reader' && s.submitPrompt.startsWith('Draft')) return false;
+    return true;
+  });
+
+  return (
+    <div className="flex flex-col max-w-[768px] mx-auto w-full px-3 md:px-0 pb-4">
+      <p className="text-xs text-white/40 mb-3">Quick actions</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        {filtered.map((suggestion) => (
+          <button
+            key={suggestion.submitPrompt}
+            type="button"
+            onClick={() => onAction(suggestion.submitPrompt)}
+            className={cn(
+              'flex flex-col gap-1 p-3 rounded-lg border border-white/10 bg-white/[0.03]',
+              'hover:border-white/25 hover:bg-white/[0.06] transition-all text-left cursor-pointer',
+              'group min-h-[72px]',
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-base">{suggestion.icon}</span>
+              <span className="text-xs font-medium text-white/80 group-hover:text-white transition-colors">
+                {suggestion.label}
+              </span>
+            </div>
+            <span className="text-[11px] text-white/35 group-hover:text-white/50 transition-colors leading-tight">
+              {suggestion.description}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Follow-up suggestions shown after the last assistant message
+function getFollowUpSuggestions(messages: UIMessage[]): Array<{ icon: string; label: string; prompt: string }> | null {
+  if (messages.length < 2) return null;
+
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  if (!lastAssistant) return null;
+
+  const text = ((lastAssistant as any).parts ?? [])
+    .map((p: any) => (typeof p === 'string' ? p : p?.text ?? ''))
+    .join('')
+    .toLowerCase();
+
+  // After a triage / inbox response, suggest follow-ups
+  const hasEmailContent = text.includes('email') || text.includes('inbox') || text.includes('subject');
+  const hasCalendarContent = text.includes('calendar') || text.includes('meeting') || text.includes('schedule');
+  const hasTaskContent = text.includes('task') || text.includes('to-do') || text.includes('todo');
+
+  const followUps: Array<{ icon: string; label: string; prompt: string }> = [];
+
+  if (hasEmailContent && !hasCalendarContent) {
+    followUps.push({ icon: '📅', label: 'Check calendar', prompt: "What's on my calendar today?" });
+  }
+  if (hasEmailContent && !hasTaskContent) {
+    followUps.push({ icon: '✅', label: 'Show my tasks', prompt: 'List my current tasks' });
+  }
+  if (hasEmailContent) {
+    followUps.push({ icon: '✏️', label: 'Reply to most urgent', prompt: 'Draft a reply to the most urgent email' });
+  }
+  if (hasCalendarContent && !hasEmailContent) {
+    followUps.push({ icon: '📧', label: 'Check inbox', prompt: 'Triage my inbox' });
+  }
+  if (hasTaskContent && !hasEmailContent) {
+    followUps.push({ icon: '📧', label: 'Check inbox', prompt: 'Triage my inbox' });
+  }
+
+  return followUps.length > 0 ? followUps.slice(0, 3) : null;
+}
+
+function FollowUpActions({
+  messages,
+  isLoading,
+  onAction,
+}: {
+  messages: UIMessage[];
+  isLoading: boolean;
+  onAction: (prompt: string) => void;
+}) {
+  const suggestions = useMemo(() => getFollowUpSuggestions(messages), [messages]);
+
+  // Don't show while streaming or if there are no suggestions
+  if (isLoading || !suggestions) return null;
+
+  // Only show after the last message is from the assistant
+  const lastMsg = messages[messages.length - 1];
+  if (!lastMsg || lastMsg.role !== 'assistant') return null;
+
+  return (
+    <div className="flex flex-col max-w-[768px] mx-auto w-full px-3 md:px-0 pt-2 pb-4">
+      <div className="flex flex-wrap gap-2">
+        {suggestions.map((s) => (
+          <button
+            key={s.prompt}
+            type="button"
+            onClick={() => onAction(s.prompt)}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs',
+              'border border-white/10 bg-white/[0.03]',
+              'hover:border-white/25 hover:bg-white/[0.06] transition-all cursor-pointer',
+              'text-white/60 hover:text-white/80',
+            )}
+          >
+            <span>{s.icon}</span>
+            <span>{s.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChatMessages(props: {
   messages: UIMessage[];
-  emptyStateComponent: ReactNode;
   aiEmoji?: string;
   className?: string;
 }) {
@@ -365,7 +498,16 @@ export function ChatWindow(props: {
   );
 
   const [input, setInput] = useState('');
+  const [interruptDismissed, setInterruptDismissed] = useState(false);
   const [rateLimitStatus, setRateLimitStatus] = useState<RateLimitResult | null>(null);
+
+  // Reset dismissed state when a new interrupt arrives
+  const prevInterrupt = usePrevious(toolInterrupt);
+  if (toolInterrupt && toolInterrupt !== prevInterrupt) {
+    if (interruptDismissed) {
+      setInterruptDismissed(false);
+    }
+  }
 
   const fetchRateLimitStatus = useCallback(async () => {
     try {
@@ -400,6 +542,18 @@ export function ChatWindow(props: {
     fetchRateLimitStatus();
   }
 
+  const handleQuickAction = useCallback(async (prompt: string) => {
+    if (isChatLoading) return;
+    // "Draft an email to " is a special case: pre-fill the input instead of submitting
+    if (prompt.endsWith(' ')) {
+      setInput(prompt);
+      return;
+    }
+    setInput('');
+    await sendMessage({ text: prompt });
+    fetchRateLimitStatus();
+  }, [isChatLoading, sendMessage, fetchRateLimitStatus]);
+
   return (
     <div className="absolute inset-0 flex flex-col">
       <ActiveScopesBar messages={messages} />
@@ -412,18 +566,31 @@ export function ChatWindow(props: {
               messages.length === 0 ? (
                 <div>
                   {props.emptyStateComponent}
-                  {props.strictMode && (
-                    <div className="flex flex-col max-w-[768px] mx-auto pt-4 w-full px-3 md:px-0">
-                      <ChatMessageBubble message={welcomeMessage} aiEmoji={props.emoji} />
-                    </div>
-                  )}
+                  <div className="flex flex-col max-w-[768px] mx-auto pt-4 w-full px-3 md:px-0">
+                    <ChatMessageBubble message={welcomeMessage} aiEmoji={props.emoji} />
+                  </div>
+                  <QuickActions
+                    agentId={props.agentId}
+                    presetId={presetId}
+                    onAction={handleQuickAction}
+                  />
                 </div>
               ) : (
                 <>
-                  <ChatMessages aiEmoji={props.emoji} messages={messages} emptyStateComponent={props.emptyStateComponent} />
-                  <div className="flex flex-col max-w-[768px] mx-auto pb-12 w-full px-3 md:px-0">
-                    <TokenVaultInterruptHandler interrupt={toolInterrupt} />
-                  </div>
+                  <ChatMessages aiEmoji={props.emoji} messages={messages} />
+                  <FollowUpActions
+                    messages={messages}
+                    isLoading={isChatLoading}
+                    onAction={handleQuickAction}
+                  />
+                  {!interruptDismissed && (
+                    <div className="flex flex-col max-w-[768px] mx-auto pb-12 w-full px-3 md:px-0">
+                      <TokenVaultInterruptHandler
+                        interrupt={toolInterrupt}
+                        onCancel={() => setInterruptDismissed(true)}
+                      />
+                    </div>
+                  )}
                 </>
               )
             }
