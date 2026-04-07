@@ -20,12 +20,12 @@ import {
 
 function SectionHeader({ number, title, subtitle }: { number: string; title: string; subtitle: string }) {
   return (
-    <div className="mb-6">
+    <div className="mb-4 md:mb-6">
       <div className="flex items-center gap-3 mb-1">
-        <span className="text-xs font-mono text-white/40 bg-white/5 rounded px-2 py-0.5">{number}</span>
-        <h2 className="text-xl font-semibold text-white">{title}</h2>
+        <span className="text-xs font-mono text-white/40 bg-white/5 rounded px-2 py-0.5 shrink-0">{number}</span>
+        <h2 className="text-lg md:text-xl font-semibold text-white">{title}</h2>
       </div>
-      <p className="text-sm text-white/50 ml-12">{subtitle}</p>
+      <p className="text-sm text-white/50 ml-0 md:ml-12">{subtitle}</p>
     </div>
   );
 }
@@ -96,7 +96,7 @@ function RecommendationItem({ number, text }: { number: number; text: string }) 
 
 export default function InsightsContent() {
   return (
-    <div className="space-y-12 pb-12">
+    <div className="space-y-8 md:space-y-12 pb-8 md:pb-12">
       {/* ── Section 1: Patterns Discovered ── */}
       <section>
         <SectionHeader

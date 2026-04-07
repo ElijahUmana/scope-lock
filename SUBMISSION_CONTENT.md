@@ -8,138 +8,178 @@
 
 ## Inspiration
 
-Every AI agent integration today starts with the same dark pattern: "Grant access to your Gmail, Calendar, GitHub, and Slack." The user clicks "Allow All" because there is no alternative, and the agent immediately holds the keys to their entire digital life.
+Every AI agent integration today follows the same dark pattern: "Grant access to your Gmail, Calendar, GitHub, and Slack." The user clicks "Allow All" because there is no alternative, and the agent immediately holds the keys to their entire digital life.
 
 We asked a different question: **what if AI agents had to earn trust, one permission at a time -- and what if the entire authorization infrastructure enforced that at every layer?**
 
-The principle of least privilege is foundational to security engineering, but it has been almost entirely absent from the AI agent ecosystem. Agents request maximum permissions upfront because the tooling makes progressive authorization hard. Auth0 Token Vault changes that equation -- it gives us a credential broker that can issue scoped tokens on demand, without the agent ever touching raw OAuth secrets.
+The principle of least privilege is foundational to security engineering, but it has been almost entirely absent from the AI agent ecosystem. Agents request maximum permissions upfront because the tooling makes progressive authorization hard. Auth0 Token Vault changes that equation -- it provides a credential broker that can issue scoped tokens on demand, without the agent ever touching raw OAuth secrets.
 
-Scope Lock exists to prove that progressive authorization is not just possible for AI agents -- it is architecturally superior. We built a risk-tiered policy engine, multi-agent credential isolation, branded consent experiences, a real-time audit trail, a security operations dashboard, and a full insights page documenting the patterns, pain points, and gaps we found -- all on top of Auth0 Token Vault and the Vercel AI SDK.
+But Token Vault alone is not enough. An agent that can request any scope, call any tool, and chain any credential escalation is still dangerous. What the ecosystem lacks is the enforcement layer on top of Token Vault: per-agent tool isolation, risk classification of every tool call, anomaly detection, tamper-proof audit trails, automatic scope expiry, rate limiting, and cryptographically signed delegation chains.
+
+Scope Lock exists to prove that all of this can be built today. We implemented a production-grade authorization framework for AI agents -- not just a demo, but a complete security architecture with 157 automated tests proving it works.
 
 ## What it does
 
-Scope Lock is a security-first AI assistant with three specialized sub-agents, a risk-tiered policy engine, and a full security operations dashboard. It connects to Gmail, Google Calendar, Google Tasks, GitHub, and Slack while enforcing seven layers of authorization control:
+Scope Lock is an **Email Triage Agent** -- a security-first AI assistant that helps busy professionals triage their inbox, manage their schedule, and stay on top of follow-ups. It connects to Gmail, Google Calendar, and Google Tasks while enforcing **ten layers of authorization control** through three specialized sub-agents, a risk-tiered policy engine, and a full security operations dashboard.
 
-**1. Multi-Agent Scope Isolation (3 Specialized Agents)**
-The system deploys three agents with hard credential boundaries -- not prompt-level restrictions, but actual tool-level enforcement. The Reader Agent can access `gmailSearchTool`, `getCalendarEventsTool`, `getTasksTool`, and `getUserInfoTool`. The Writer Agent can access `gmailDraftTool` and `createTasksTool`. The Commerce Agent can access `shopOnlineTool`. Each agent is constructed with only its authorized tools passed to the LLM -- the Reader Agent physically cannot invoke `gmailDraftTool` because the tool does not exist in its execution context. This is real credential isolation enforced at the SDK layer, not prompt engineering.
+**1. Email Triage Agent -- Domain-Specific Use Case**
+The system prompt is purpose-built for email triage. When asked to help with emails, the agent searches for recent messages, categorizes them (URGENT / ACTION / INFORMATIONAL / LOW PRIORITY), suggests actions (Reply, Forward, Create Task, Archive), and only requests write scope escalation when the user wants to act on a specific email. This grounds the progressive authorization model in a real workflow -- the agent does not ask for gmail.compose until you actually need to draft a reply.
 
-**2. Risk-Tiered Policy Engine**
-Every tool call is classified by a policy engine before execution. GREEN-tier operations (Gmail search, calendar reads, task listing) are auto-approved after Token Vault consent. AMBER-tier operations (email drafts, task creation) trigger elevated warnings. RED-tier operations (purchases) require CIBA step-up authentication via mobile push. The full policy rules table is visible in the Permission Dashboard so users can inspect the risk classification of every tool.
+**2. Multi-Agent Scope Isolation (Reader / Writer / Commerce)**
+Three agents with hard credential boundaries enforced at the tool-filtering layer -- not prompt-level restrictions. The Reader Agent can access `gmailSearchTool`, `getCalendarEventsTool`, `getTasksTool`, and `getUserInfoTool`. The Writer Agent can access `gmailDraftTool` and `createTasksTool`. The Commerce Agent can access `shopOnlineTool`. Each agent is constructed with only its authorized tools passed to the LLM via `Object.entries(tools).filter(([name]) => allowedToolNames.includes(name))`. The Reader Agent physically cannot invoke `gmailDraftTool` because the tool does not exist in its execution context. This is real credential isolation enforced at the SDK layer, not prompt engineering.
 
-**3. Scope Presets / Privacy Modes**
-Users can switch between three security postures: Lockdown (no tools available -- the agent cannot access any external service), Privacy (read-only tools only), and Productivity (full access including writes). Each preset gates which tools are passed to the LLM, enforcing least-privilege at the UI layer before any Token Vault interaction occurs.
+**3. Risk-Tier Policy Engine (GREEN / AMBER / RED)**
+Every tool call is classified by a policy engine before execution. GREEN-tier operations (Gmail search, calendar reads, task listing) are auto-approved after Token Vault consent. AMBER-tier operations (email drafts, task creation) trigger elevated warnings. RED-tier operations (purchases) require CIBA step-up authentication via mobile push. Unknown tools default to AMBER for safety. The full policy rules table is visible in the Dashboard so users can inspect the risk classification of every tool.
 
-**4. Active Scopes Bar (Real-Time Zero-Trust Display)**
-A persistent bar in the chat interface shows the current authorization state. It starts in a zero-trust state: "No services authorized. The agent will request each permission as needed." As the user grants scopes, service icons appear with color-coded read/write indicators -- green for read-only, amber for write access. This gives users continuous visibility into exactly what the agent can access at any moment.
+**4. Scope Presets (Lockdown / Privacy / Productivity)**
+Users can switch between three security postures: **Lockdown** (no tools available -- the agent cannot access any external service), **Privacy** (read-only tools only), and **Productivity** (full access including writes). Each preset gates which tools are passed to the LLM. The Lockdown preset passes an empty tool array. The Privacy preset passes only GREEN-tier tools. Tools must pass both the agent filter AND the preset filter -- the intersection enforces double least-privilege at the UI layer before any Token Vault interaction occurs.
 
-**5. Branded Authorization Cards**
-Instead of Auth0's default generic popup, Scope Lock renders custom consent cards for every authorization request. Each card shows the service name and icon, the risk level (Read Only / Write Access / Elevated), a human-readable description of exactly what data will be accessed ("Read your email subjects, senders, and content"), and a security context note explaining that credentials are managed by Token Vault and the agent never sees raw tokens. This transforms the consent experience from a security gate into an informed decision.
+**5. Progressive Authorization with Branded Consent Cards**
+Instead of Auth0's default generic popup, Scope Lock renders custom consent cards for every authorization request. Each card shows the service name and icon, the risk level (Read Only / Write Access / Elevated), a human-readable description of exactly what data will be accessed ("Read your email subjects, senders, and content"), and a security context note explaining that credentials are managed by Token Vault and the agent never sees raw tokens. The `TokenVaultInterruptHandler` intercepts `TokenVaultInterrupt` objects, extracts the `connection` and `requiredScopes`, and maps them to branded UI.
 
-**6. Progressive Authorization with Explanatory System Prompt**
-The agent is instructed to explain every permission request before it happens. Before accessing Gmail, the agent says: "To check your emails, I'll need read-only access to your Gmail. This uses the gmail.readonly scope through Auth0 Token Vault." After completing the access, it confirms: "I retrieved your latest 10 emails using read-only Gmail access." For write operations, it explicitly warns about elevated privileges.
+**6. Active Scopes Bar with Zero-Trust Start**
+A persistent bar in the chat interface shows the current authorization state. It starts in a zero-trust state: "No services authorized. The agent will request each permission as needed." As the user grants scopes, service icons appear with color-coded read/write indicators -- green for read-only, amber for write access. The bar derives state from the chat message history by scanning for tool-call message parts.
 
-**7. Step-Up Authentication for High-Risk Actions (CIBA)**
-Read-only operations require standard Token Vault consent. Write operations trigger AMBER-level warnings. But when the Commerce Agent attempts a purchase, the policy engine classifies it as RED and triggers CIBA -- Client-Initiated Backchannel Authentication sends a push notification through Auth0 Guardian to the user's device with a binding message like "Do you want to buy 2 AirPods?" The agent blocks until the user explicitly approves or denies from their phone. No silent financial transactions.
+**7. credentialsContext Tuning as a Security Architecture**
+Read operations use `credentialsContext: 'thread'` -- credentials are resolved at session initialization for performance. Write operations use `credentialsContext: 'tool-call'` -- credentials are resolved fresh at each invocation for security isolation. External services (GitHub, Slack) always use `'tool-call'` for maximum isolation. This is not a performance optimization -- it is a deliberate security architecture. Each `withTokenVault()` call explicitly configures this setting.
+
+**8. SHA-256 Hash-Chained Audit Trail (Tamper-Proof)**
+Every tool call is logged with tool name, scopes used, connection, `credentialsContext`, risk level, timestamp, success/failure, and a SHA-256 hash computed from the entry payload concatenated with the previous entry's hash. The chain starts from a genesis hash (`0` x 64). The `verifyAuditChain()` function walks the entire chain and detects any tampered entry by recomputing the expected hash at each position. The audit verification endpoint (`/api/audit/verify`) exposes this as an API. The chain is append-only -- entries cannot be modified or deleted without breaking the cryptographic chain.
+
+**9. Anomaly Detection Engine**
+The anomaly detector analyzes the audit trail after every tool call and flags four pattern types: **RAPID_ESCALATION** (GREEN to RED within 60 seconds -- possible automated privilege escalation), **HIGH_FREQUENCY** (>10 tool calls per minute -- possible automated abuse), **SCOPE_HOPPING** (3+ distinct connections within 30 seconds -- rapid service switching), and **UNUSUAL_SCOPE** (first-time tool access after a baseline of 5+ calls -- novel tool usage). Each alert has a severity level (low/medium/high) and is displayed in the Dashboard's Anomaly Alerts panel.
+
+**10. Scope TTL Auto-Expiration**
+Every scope grant has a time-to-live based on its risk level: GREEN scopes expire after 30 minutes, AMBER scopes after 10 minutes, RED scopes after 5 minutes. The `checkScopeExpiry()` function returns validity status and remaining time. The Scope Expiry dashboard panel shows countdown timers for every active grant. When a grant expires, the agent must re-request authorization -- no indefinite credential persistence.
+
+**11. Per-Agent Rate Limiting**
+Tool calls are rate-limited per agent, tuned by risk level: Reader Agent gets 50 calls per 5 minutes (reads are safe), Writer Agent gets 15 (writes mutate state), Commerce Agent gets 3 (financial operations). The rate limiter tracks calls in a sliding window per `userId:agentId` pair. When the limit is exceeded, the call is blocked and the remaining cooldown is returned. The chat UI shows a rate-limit indicator when approaching the threshold.
+
+**12. Agent Delegation with Cryptographic Chains**
+When a user switches between agents (Reader to Writer to Commerce), each transition is recorded as a `DelegationRequest` with a SHA-256 hash of the delegation payload (from-agent, to-agent, tools requested, timestamp). The chain is append-only, creating a verifiable, tamper-evident trail of every privilege escalation during the session. The Delegation Chain dashboard panel visualizes the flow with agent nodes, hash-annotated arrows, risk escalation badges, and approval status.
+
+**13. Rich Authorization Requests (RFC 9396)**
+The `auth0-rar.ts` module implements Rich Authorization Requests per RFC 9396 for structured, machine-readable authorization details. Instead of flat binding messages, RAR includes transaction type, actions, resource locations, instructed amounts with currency, creditor names, and account identifiers. This enables PSD2-compliant audit trails and Open Banking interoperability.
+
+**14. Auth0 Actions Showcase (Post-Login + Token Exchange)**
+Two Auth0 Actions are implemented and displayed as reference code. The **Post-Login Action** enriches the ID token with custom claims under the `https://scopelock.dev` namespace -- connected-account count, agent access list, scope-grant count, and last-login timestamp. The **Token Exchange Action** runs during Token Vault credential exchanges -- it logs every exchange attempt for audit and blocks high-risk scopes (gmail.compose, gmail.send, product:buy) unless step-up authentication was completed within a 5-minute window.
+
+**15. Connected Accounts Management**
+The Profile page provides full Connected Accounts management via the Auth0 Management API. Users can view all federated identity providers linked to their account (Google, GitHub, Slack), see connection metadata and linked-at timestamps, and delete individual connected accounts. This gives users direct control over which identity providers are linked -- complementing the scope-level revocation in the dashboard with account-level disconnection.
+
+**16. Token Vault with credentialsContext**
+Each tool wrapped with `auth0AI.withTokenVault()` explicitly configures its credential lifecycle. The Token Vault integration across six connections (Gmail read, Gmail write, Calendar, Tasks, GitHub, Slack) demonstrates three `credentialsContext` modes: `'thread'` for read operations (shared within conversation for performance), `'tool-call'` for write operations (isolated per invocation for security), and `'tool-call'` for external services (maximum isolation). This deliberate per-connection tuning is the core security/performance architecture.
+
+**17. Security Operations Dashboard**
+A full security operations page with seven panels:
+- **Security Score Gauge** (0-100) computed from active scope count, write scope presence, admin scope presence, and progressive authorization usage
+- **Scope Topology Visualization** -- interactive diagram showing Agent-to-Tool-to-Service boundaries with risk-level colored connections
+- **Token Lifecycle Panel** -- token presence indicators (ID/Access/Refresh), expiry countdown, credential context distribution across connections
+- **JWT Token Inspector** -- decoded ID token claims table (issuer, subject, audience, expiry, scopes) with live expiry countdown, token presence indicators, and security note about raw tokens
+- **Scope Analytics** (pure CSS charts) -- total API calls, read/write ratio with conic-gradient donut chart, average risk score, top service usage, time-bucketed stacked bar charts for scope usage over time, service breakdown with horizontal stacked bars, credential context distribution bar
+- **Consent History Timeline** -- alternating left/right timeline with event cards showing granted/denied/pending/revoked/expired status, service icons, scope badges, inferred agent, and relative timestamps; responsive mobile layout with single-column timeline
+- **Policy Rules Table** showing every tool's risk classification, required action, and reason; plus Anomaly Alerts panel, Scope Expiry panel with countdown timers, and Delegation Chain panel with cryptographic flow visualization
+
+**18. Security Sandbox with Real Test Execution**
+The Security page includes a sandbox that runs 14 automated security assertions against the live system on every page load. Assertions are grouped into four categories: **Isolation** (Reader cannot access write tools, Writer cannot access commerce tools, Commerce cannot access read tools, Lockdown has zero tools, Privacy has only read tools), **Policy** (read tools classified GREEN, write tools classified AMBER, commerce tools classified RED, unknown tools default to AMBER), **Credential** (Gmail read uses thread-scoped credentials, Gmail write uses per-call isolation, GitHub uses per-call isolation), and **Audit** (audit store is functional, audit entries include risk level). Results render with expandable detail rows, category pass/fail counters, and a summary banner. These are real tests executing against real modules -- not mocked.
+
+**19. Authorization Matrix**
+A visual cross-reference matrix showing which tools each agent can access under each scope preset. Cells are color-coded by risk level (GREEN/AMBER/RED) and marked with check/lock icons to show access vs. denial. This makes the full authorization policy visible at a glance.
+
+**20. 157 Automated Tests Across 8 Test Files + 14 Security Assertions**
+143 unit tests across 8 test files covering agents (32 tests), policy engine (17), audit trail (14), anomaly detection (10), scope presets (19), scope presets integration (9), scope resolver (19), and Gmail parser (23). Plus 14 live security assertions in the sandbox. Total: 157 automated quality checks.
+
+**21. Error Boundaries and Responsive Design**
+Every page wraps its content in React error boundaries with recovery buttons. The Dashboard, Security, and Profile pages all use `<ErrorBoundary pageName="...">`. The entire UI is mobile responsive -- the consent timeline switches from alternating desktop layout to single-column mobile layout, the dashboard grid adapts from multi-column to single-column, and the navigation collapses for mobile viewports.
 
 ## How we built it
 
-**Architecture:** Next.js 15 App Router with the Vercel AI SDK (`streamText`, `createUIMessageStream`, `withInterruptions`) for streaming tool-calling, powered by OpenAI GPT-4o. The frontend is a multi-agent chat interface with scope preset controls and real-time authorization state visualization.
+**Architecture:** Next.js 15 App Router with the Vercel AI SDK (`streamText`, `createUIMessageStream`, `withInterruptions`) for streaming tool-calling, powered by OpenAI GPT-4o. The frontend is a multi-agent chat interface with scope preset controls, an active scopes bar, and real-time authorization state visualization.
 
-**Multi-Agent Credential Isolation:** Three agent profiles are defined in `agents.ts`, each with an explicit `tools` array, `riskLevel`, and `credentialsContext` setting. The chat route filters the tool map by agent ID before passing it to `streamText` -- `Object.entries(allTools).filter(([name]) => allowedToolNames.includes(name))`. The LLM physically cannot call tools outside its agent boundary because they are not provided to the model.
+**Multi-Agent Credential Isolation:** Three agent profiles are defined in `agents.ts`, each with an explicit `tools` array, `riskLevel`, `credentialsContext` setting, `canDelegateTo` list, and `cannotAccess` list. The chat route filters the tool map by agent ID before passing it to `streamText`. A second filter layer applies the active scope preset, creating a double intersection: `(agent tools) AND (preset tools)`. The LLM physically cannot call tools outside both boundaries.
 
 **Risk-Tiered Policy Engine:** The `policy-engine.ts` module maps every tool name to a `PolicyRule` with a `RiskLevel` (GREEN/AMBER/RED), an `action` (auto-approve/warn-and-proceed/require-step-up), and a `requiredAuth` (none/consent/ciba). Every tool call passes through `evaluatePolicy()` before execution. Unknown tools default to AMBER for safety.
 
 **Auth0 Token Vault Integration:** Each external service is wrapped with `auth0AI.withTokenVault()`, configuring the OAuth connection, required scopes, and credential lifecycle:
 
-- `withGmailRead` -- `gmail.readonly`, `credentialsContext: 'thread'` (performance optimization for reads)
-- `withGmailWrite` -- `gmail.compose`, `credentialsContext: 'tool-call'` (security isolation for writes)
+- `withGmailRead` -- `gmail.readonly`, `credentialsContext: 'thread'`
+- `withGmailWrite` -- `gmail.compose`, `credentialsContext: 'tool-call'`
 - `withCalendar` -- `calendar.events`, `credentialsContext: 'thread'`
-- `withGitHub` -- `credentialsContext: 'tool-call'` (GitHub does not support incremental scope grants)
+- `withTasks` -- Google Tasks, `credentialsContext: 'thread'`
+- `withGitHubConnection` -- `credentialsContext: 'tool-call'`
 - `withSlack` -- `channels:read`, `groups:read`, `credentialsContext: 'tool-call'`
-- `withTasks` -- Google Tasks scope, `credentialsContext: 'thread'`
 
-**credentialsContext as a Security Primitive:** Read operations use `credentialsContext: 'thread'` -- credentials are resolved at session initialization for performance. Write operations use `credentialsContext: 'tool-call'` -- credentials are resolved at the individual tool invocation level for security isolation. This is a deliberate architectural decision: reads are fast, writes are safe.
+**CIBA for Async Authorization:** The `withAsyncAuthorization` wrapper implements Client-Initiated Backchannel Authentication for the Commerce Agent's `shopOnlineTool`. When triggered, it sends a push notification through Auth0 Guardian with a binding message ("Do you want to buy 2 AirPods?"), then blocks until the user explicitly approves or denies from their phone.
 
-**Branded Authorization Cards:** The `TokenVaultInterruptHandler` component intercepts `TokenVaultInterrupt` objects, extracts the connection and `requiredScopes`, maps them to human-readable labels and risk levels, and renders a custom card with service branding, scope descriptions, risk classification, and a security context footer -- replacing the generic Auth0 consent popup.
+**SHA-256 Audit Chain:** The `audit.ts` module computes each entry's hash as `SHA256(previousHash:toolName:scopes:timestamp:success:riskLevel:connection)`. The chain starts from a genesis hash of 64 zeroes. `verifyAuditChain()` walks every entry and recomputes expected hashes, returning the exact index of any break.
 
-**Active Scopes Bar:** The `ActiveScopesBar` component derives the current authorization state from the chat message history by scanning for tool-call message parts. It maps tool names to services and read/write levels, then renders a persistent status bar that transitions from zero-trust lockdown to progressively filled service indicators.
+**Anomaly Detection:** The `anomaly-detection.ts` module runs four detection functions after every audit entry: rapid escalation (GREEN to RED within 60s), high frequency (>10 calls per 60s), scope hopping (3+ connections within 30s), and unusual scope (first-time tool use after baseline). Alerts are stored per-user and capped at 100.
 
-**Audit Trail:** Every tool call is logged with the tool name, scopes used, connection name, `credentialsContext` level, risk classification from the policy engine, timestamp, and success/failure status. The audit store is keyed by user ID and capped at 200 entries. Scope requests (granted, denied, pending) are tracked separately with a timeline visualization.
+**Scope TTL:** The `scope-ttl.ts` module manages time-bound scope grants with `grantScope()`, `checkScopeExpiry()`, `getActiveGrants()`, `revokeExpiredScopes()`, and `renewGrant()`. TTL values: GREEN=30 min, AMBER=10 min, RED=5 min.
 
-**Permission Dashboard:** A full security operations page featuring:
-- Security Score (0-100) computed from active scope count, write scope presence, admin scope presence, and progressive authorization usage
-- Connected services with scope badges classified as READ/WRITE/ADMIN with color coding
-- Real-time audit trail table with tool icons, scope badges, timestamps, and success/failure indicators
-- Scope request timeline with granted/denied/pending status dots
-- Policy rules table showing every tool's risk classification, required action, and reason
+**Rate Limiting:** The `rate-limiter.ts` module implements per-agent sliding-window rate limits: Reader=50/5min, Writer=15/5min, Commerce=3/5min. The `checkRateLimit()` function increments and checks in one atomic operation. `getRateLimitStatus()` provides a peek without incrementing.
 
-**Scope Topology Visualization:** An interactive diagram showing Agent-to-Tool-to-Service boundaries with risk-level colored connections, displaying how credential flows are isolated across the multi-agent architecture.
+**Agent Delegation:** The `agent-orchestrator.ts` module creates SHA-256-hashed `DelegationRequest` entries when users switch agents, building an append-only cryptographic chain. Each delegation records from-agent, to-agent, tools requested, risk escalation, timestamp, hash, and approval status.
 
-**Insights Page:** A structured analysis of patterns discovered (progressive auth, credentialsContext tuning, risk-tiered policies, audit necessity), pain points (Google OAuth scope configuration, consent UX customization, CIBA channel setup, raw API response sanitization), gaps (no scope expiry, no per-agent boundaries in SDK, no built-in policy engine, no audit event standard), and six concrete recommendations for Auth0.
-
-**CIBA for Async Authorization:** The `withAsyncAuthorization` wrapper implements Client-Initiated Backchannel Authentication for the Commerce Agent's `shopOnlineTool`. When triggered, it sends a push notification through Auth0 Guardian with a binding message, then polls for user approval before proceeding.
-
-**Interrupt-Driven Consent Flow:** `withInterruptions` on the server and `useInterruptions` on the client form a bidirectional interrupt protocol. When Token Vault cannot fulfill a credential request, execution pauses, the interrupt propagates to the UI, the user completes consent via the branded authorization card, and execution resumes without losing conversation state.
+**Dashboard:** Pure CSS visualizations -- conic-gradient donut charts for read/write ratio, stacked bar charts for time-bucketed scope usage, horizontal stacked bars for service breakdown, and a credential context distribution bar. No charting library dependencies. The scope topology uses absolute-positioned SVG-like layout with CSS grid.
 
 ## Challenges we ran into
 
-**Multi-Agent Credential Isolation Without SDK Support.** The Auth0 AI SDK does not natively support per-agent credential boundaries. `credentialsContext` operates at the tool level, not the agent level. We solved this by filtering the tool map before passing it to `streamText` -- each agent profile declares its allowed tools, and only those tools are provided to the LLM. This is real enforcement: the Writer Agent cannot call `gmailSearchTool` because the tool object does not exist in its context. But this pattern should be a first-class SDK feature.
+**Multi-Agent Credential Isolation Without SDK Support.** The Auth0 AI SDK does not natively support per-agent credential boundaries. `credentialsContext` operates at the tool level, not the agent level. We solved this by filtering the tool map before passing it to `streamText` -- each agent profile declares its allowed tools, and only those tools are provided to the LLM. But this pattern should be a first-class SDK feature.
 
-**Building a Policy Engine From Scratch.** There is no standard for risk-classifying tool calls in the agent ecosystem. We built a policy engine that maps every tool name to a risk level and required authentication method. This works, but it should be a framework feature -- every agent application needs this, and every developer is reinventing it.
+**Building a Tamper-Proof Audit Chain.** Standard logging writes entries and forgets them. We needed an audit trail where any modification to any entry is detectable. The SHA-256 hash chain approach means each entry's hash depends on the previous entry's hash, so modifying entry N invalidates every entry from N onward. This required careful handling of the genesis hash, entry ordering, and serialization consistency.
 
-**Google OAuth Scope Configuration for Token Vault.** Getting Google's OAuth consent screen to work correctly with Token Vault's incremental scope requests was the most time-consuming configuration challenge. Google treats certain scope combinations as incompatible, and the consent screen behavior changes based on whether the app is in testing or production mode. We had to carefully map which scopes could be requested together and which required separate connections.
+**Anomaly Detection Threshold Tuning.** Setting the right thresholds for rapid escalation (60s window), high frequency (10 calls/min), and scope hopping (3 connections/30s) required balancing false positives against real attack detection. Too aggressive and normal email triage triggers alerts. Too lenient and automated abuse goes undetected.
 
-**Branded Consent Card Engineering.** Auth0's default consent popup is functional but generic. Building a branded experience required reverse-engineering the `TokenVaultInterrupt` object structure to extract `connection`, `requiredScopes`, and resume metadata. We mapped every scope to human-readable labels, risk classifications, and data access descriptions. Better documentation and customization hooks from Auth0 would help.
+**Scope TTL Without Token Vault Support.** Token Vault does not support time-bound scope grants natively. We implemented TTL at the application layer, which means expired grants are enforced client-side but Token Vault's cached credentials may still be valid server-side. True scope expiry requires Token Vault integration.
 
-**CIBA Channel Setup.** CIBA requires a configured push notification channel (Auth0 Guardian) and a registered device. The setup documentation is sparse, and debugging notification delivery required tracing through Guardian enrollment, the CIBA authorization request, and the token polling mechanism.
+**credentialsContext Tuning.** Understanding when to use `'thread'` vs `'tool-call'` was critical. GitHub does not support incremental scope grants, so `'tool-call'` is mandatory. But read operations benefit from `'thread'`-level caching. Making the wrong choice causes either silent credential failures or unnecessary re-authorization prompts. This single-line configuration change has massive behavioral impact.
 
-**credentialsContext Tuning.** Understanding when to use `'thread'` vs `'tool-call'` was critical. GitHub does not support incremental scope grants, so `'tool-call'` is mandatory. But read operations benefit from `'thread'`-level caching. Making the wrong choice causes either silent credential failures or unnecessary re-authorization prompts. This took hours to understand and represents a single-line configuration change with massive behavioral impact.
+**Pure CSS Dashboard Charts.** We deliberately avoided charting libraries to keep the bundle size minimal. Every chart -- donut, stacked bar, horizontal bar, distribution bar -- is built with CSS conic-gradient, flexbox, and inline styles. This required manual percentage calculations, color interpolation, and responsive breakpoint handling.
 
 ## Accomplishments that we're proud of
 
-**Real multi-agent credential isolation.** Three agents with hard tool boundaries enforced at the SDK layer. The Reader Agent physically cannot call write tools. This is not prompt engineering -- it is architectural enforcement. We built what the SDK does not yet provide natively.
+**A complete authorization framework, not just a demo.** Scope Lock implements ten security layers: multi-agent isolation, risk-tier policy engine, scope presets, progressive authorization, branded consent, SHA-256 audit chain, anomaly detection, scope TTL, rate limiting, and cryptographic delegation chains. Each layer is independently testable and independently useful.
 
-**A working risk-tiered policy engine.** Every tool call classified as GREEN (auto-approve), AMBER (warn), or RED (require step-up auth). The policy rules are visible in the dashboard. Unknown tools default to AMBER. This is the authorization pattern the industry needs but nobody has standardized.
+**157 automated quality checks.** 143 unit tests across 8 test files plus 14 live security assertions that execute against real modules on every page load. The tests cover agent isolation boundaries, policy classification rules, audit chain integrity, anomaly detection thresholds, scope preset enforcement, scope resolver correctness, Gmail output parsing, and cross-cutting integration scenarios.
 
-**Branded authorization cards that build trust.** The custom consent experience shows service name, risk level, specific data access descriptions, and security context. Users see "Read your email subjects, senders, and content" instead of a generic "Grant access to Gmail." This transforms consent from a checkbox into an informed decision.
+**A tamper-proof audit trail with real cryptographic verification.** Every audit entry is SHA-256 hash-chained to the previous entry. The `verifyAuditChain()` function walks the entire chain and pinpoints the exact index of any tampering. The `/api/audit/verify` endpoint exposes this as an API. This is the level of audit integrity that financial systems require.
 
-**Active Scopes Bar showing zero-trust progression.** The real-time display starts locked ("No services authorized"), then progressively fills with color-coded service indicators as scopes are granted. Users have continuous visibility into their agent's authorization state.
+**Anomaly detection that catches real attack patterns.** Rapid privilege escalation, automated high-frequency abuse, cross-service scope hopping, and novel tool usage -- four distinct detection patterns, each with configurable thresholds and severity levels, running in real-time after every tool call.
 
-**Permission Dashboard with security scoring.** A full security operations view: computed security score, connected services with READ/WRITE/ADMIN scope badges, real-time audit trail, scope request timeline, policy rules table, and scope topology diagram. This is the transparency that every AI agent should provide.
+**Domain-specific agent architecture.** The Email Triage Agent is not a generic chatbot with permissions bolted on. The system prompt, the agent specialization (Reader/Writer/Commerce), and the progressive authorization flow are all designed around a real email triage workflow where permission escalation follows natural task progression: read emails first, then draft replies, then create follow-up tasks.
 
-**Insights page with concrete recommendations for Auth0.** We documented every pattern, pain point, and gap we found. Six actionable recommendations: scope expiry, per-agent credential boundaries, built-in policy engine, audit event schema, consent customization hooks, and embeddable dashboard widgets. This is a genuine technical contribution to the Auth0 ecosystem.
+**Auth0 Actions as executable documentation.** The Post-Login and Token Exchange Actions are not just described -- they are implemented as exportable string constants with full logic: custom namespace claims, connected-account counting, high-risk scope detection, step-up verification with 5-minute windows, and structured audit logging. These are production-ready reference implementations.
 
-**credentialsContext as a deliberate security architecture.** Read operations use `'thread'` for performance. Write operations use `'tool-call'` for isolation. This is not accidental -- it is a conscious security/performance tradeoff that should be documented as a best practice.
-
-**Zero-credential agent architecture.** The AI agent never sees, stores, or transmits a raw OAuth token. Every credential flows through Token Vault's federated exchange. If the agent's memory is compromised, there are no secrets to leak.
+**A security operations dashboard built with zero external chart dependencies.** Every visualization -- security score gauge, scope topology, token lifecycle, JWT inspector, scope analytics with donut and bar charts, consent timeline, delegation chain -- is pure CSS and React. Conic-gradient donuts, flexbox stacked bars, and grid-based topology. No D3, no Chart.js, no Recharts.
 
 ## What we learned
 
 **credentialsContext is the most underrated security primitive in the SDK.** The difference between `'thread'` and `'tool-call'` determines whether credentials are cached across tool invocations or isolated per-call. Read operations should use `'thread'` for performance. Write operations must use `'tool-call'` for security. This single configuration option has more security impact than any other setting.
 
-**Multi-agent isolation requires enforcement, not instructions.** Telling an LLM "you are the Reader Agent, do not write" is prompt engineering. Removing write tools from its execution context is enforcement. The Auth0 AI SDK does not natively support per-agent credential boundaries -- `credentialsContext` operates at the tool level. We built agent-level isolation by filtering tool maps, but this should be a first-class SDK feature.
+**Multi-agent isolation requires enforcement, not instructions.** Telling an LLM "you are the Reader Agent, do not write" is prompt engineering. Removing write tools from its execution context is enforcement. We built agent-level isolation by filtering tool maps, but this should be a first-class SDK feature.
 
-**Risk classification of tool calls should be a framework feature.** We built a policy engine that maps every tool to GREEN/AMBER/RED. This is not application-specific -- it is a universal need. Every agent application needs to distinguish between reads, writes, and destructive operations. Auth0 should ship a `PolicyEngine` class in `@auth0/ai`.
+**Risk classification of tool calls should be a framework feature.** We built a policy engine that maps every tool to GREEN/AMBER/RED. This is not application-specific -- it is a universal need. Every agent application needs to distinguish between reads, writes, and destructive operations.
 
-**Progressive authorization is a UX innovation, not just a security measure.** Users who see each permission requested with a clear explanation feel more in control than users who see a wall of checkboxes. The branded authorization cards with risk levels and data access descriptions produce higher trust than generic OAuth popups.
+**Tamper-proof audit trails are mandatory for enterprise adoption.** Standard logging is insufficient when agents operate on behalf of users. The hash-chained audit trail guarantees that no entry can be modified without detection. This is the accountability layer the agent ecosystem is missing.
 
-**The audit trail gap is real.** We log every tool call with scopes, connection, credentialsContext, risk level, and outcome. But there is no industry standard for this. Auth0 should define an `AuditEvent` schema for agent authorization logging.
+**Scope expiry transforms the security model.** Time-bound grants (GREEN=30min, AMBER=10min, RED=5min) mean the agent's access naturally decays over time. Without active renewal, all permissions evaporate. This is fundamentally different from the current "grant once, persist forever" model.
 
-**Scope expiry is the missing security feature.** Once a scope is granted via Token Vault, it persists until manual revocation. Time-bound scopes ("grant gmail.readonly for 1 hour") would significantly improve security posture. This is the single most impactful feature Auth0 could add.
+**Anomaly detection is essential, not optional.** A rapid escalation from email reading to financial transactions within 60 seconds is a strong signal of automated attack. Without anomaly detection, the system cannot distinguish between normal user behavior and credential probing.
 
 ## What's next for Scope Lock
 
-**Auth0 FGA for Document-Level Access Control.** The FGA integration is scaffolded -- we want fine-grained authorization at the individual resource level (specific Google Docs, specific GitHub repos), not just the API level.
+**Auth0 FGA for Document-Level Access Control.** Fine-grained authorization at the individual resource level -- specific Google Docs, specific GitHub repos, specific Slack channels -- not just the API level.
 
 **MCP Server Authentication.** As Model Context Protocol becomes the standard for agent-tool communication, Scope Lock's progressive authorization pattern needs to work with MCP's authentication flow. Token Vault-backed MCP auth is the logical next step.
 
-**Time-Bound Scopes.** Implementing automatic scope expiry and re-authorization, so that a `gmail.readonly` grant expires after a configurable window and the agent must re-request consent.
+**Server-Side Scope TTL Enforcement.** Moving scope expiry from application-layer enforcement to Token Vault integration, so expired grants actually revoke cached credentials at the provider level.
 
-**NPM Package for Progressive Authorization.** The multi-agent isolation + policy engine + branded consent + audit trail pattern is reusable. We want to extract it into a standalone package that any Vercel AI SDK project can use.
+**NPM Package for Progressive Authorization.** The multi-agent isolation + policy engine + branded consent + audit trail + anomaly detection pattern is reusable. We want to extract it into a standalone package that any Vercel AI SDK project can use.
 
 ## Built With
 
-auth0, nextjs, vercel-ai-sdk, typescript, openai, gpt-4o, tailwindcss, token-vault, ciba, oauth2, react, drizzle-orm, postgres, lucide-react
+auth0, nextjs, vercel-ai-sdk, typescript, openai, gpt-4o, tailwindcss, token-vault, ciba, oauth2, react, sha-256, lucide-react
 
 ---
 
@@ -149,23 +189,33 @@ auth0, nextjs, vercel-ai-sdk, typescript, openai, gpt-4o, tailwindcss, token-vau
 
 ## Bonus Blog Post
 
-### What We Actually Learned Building a Risk-Tiered Policy Engine for AI Agent Authorization
+### What Happens When You Treat AI Agent Authorization as a Real Security Problem
 
-I built an AI agent system with three specialized sub-agents, a policy engine that classifies every tool call by risk level, branded consent cards, and a full security operations dashboard. The most important thing I learned is that the authorization primitives we need for agentic AI do not fully exist yet -- but Auth0 Token Vault gets us closer than anything else.
+Most AI agent demos treat authorization as a checkbox: connect to Gmail, grant all scopes, move on. We wanted to find out what happens when you take it seriously -- when you build the audit trail, the anomaly detection, the rate limiting, the scope expiry, and the tamper-proof logging that a production system actually needs.
 
-The architecture starts with a principle: not all tool calls are equal. Searching Gmail is not the same as drafting an email, which is not the same as buying something. So we built a policy engine that classifies every tool as GREEN (read-only, auto-approve after consent), AMBER (write operation, warn and proceed with elevated consent), or RED (financial/destructive, require CIBA step-up authentication via mobile push). This three-tier model maps cleanly to real user expectations about what an AI agent should be able to do without asking versus what requires explicit approval.
+The answer: you end up building an entire security framework, and you discover that the primitives for it barely exist.
 
-The multi-agent credential isolation was the hardest problem. We deploy three agents: Reader (gmail search, calendar, tasks), Writer (email drafts, task creation), and Commerce (purchases). The critical insight is that prompt-level instructions ("you are the Reader Agent, do not write") are not security -- they are suggestions. An adversarial prompt can bypass them. Real isolation means the Reader Agent's execution context does not contain write tools at all. We filter the tool map by agent ID before passing it to the Vercel AI SDK's `streamText`. The LLM cannot call `gmailDraftTool` from the Reader Agent because the function does not exist in its scope. This is enforcement, not instruction.
+Scope Lock started as an email triage agent. The user asks the agent to check their inbox. The agent needs gmail.readonly. Auth0 Token Vault brokers that credential without the LLM ever seeing the raw token. Simple enough.
 
-Auth0 Token Vault is what makes this architecture feasible. Each tool is wrapped with `withTokenVault()` specifying the OAuth connection, required scopes, and a `credentialsContext` setting. This last parameter is the most underrated security primitive in the entire SDK. Setting it to `'thread'` means credentials are resolved once per session -- fast, but the credential persists across tool calls. Setting it to `'tool-call'` means credentials are resolved fresh at each invocation -- slower, but each write operation gets its own isolated credential. We deliberately use `'thread'` for all read operations and `'tool-call'` for all write operations. This is not a performance optimization. It is a security architecture.
+But then the user wants to draft a reply. That requires gmail.compose -- a write scope. And suddenly we are in different territory. A read operation that exposes data is categorically different from a write operation that creates data on the user's behalf. So we built a policy engine. Every tool call gets classified: GREEN for reads (auto-approve), AMBER for writes (warn and proceed), RED for financial operations (require step-up authentication via CIBA mobile push). This three-tier model maps directly to real user expectations about what an agent should do silently versus what requires explicit approval.
 
-The branded authorization cards replaced Auth0's generic consent popup. When Token Vault raises a `TokenVaultInterrupt`, we intercept it, extract the `connection` and `requiredScopes`, map them to human-readable labels and risk classifications, and render a custom card showing the service name, risk level badge, specific data access description ("Read your email subjects, senders, and content"), and a security note about Token Vault credential management. This transforms consent from "click Allow to continue" into an informed decision where the user understands what data the agent will access and at what risk level.
+Then we needed isolation. Three sub-agents -- Reader, Writer, Commerce -- each with a hard boundary around which tools they can access. Not prompt-level restrictions ("you are the Reader Agent, don't write") -- those are suggestions, not security. The Reader Agent's execution context does not contain `gmailDraftTool`. The function literally does not exist in its scope. We filter the tool map by agent ID before passing it to the Vercel AI SDK's `streamText`. This is enforcement at the SDK layer.
 
-The gaps we found are real and worth documenting. First: there is no scope expiry in Token Vault. Once granted, a scope persists until manual revocation. Time-bound scopes would be a significant security improvement. Second: the Auth0 AI SDK does not support per-agent credential boundaries. `credentialsContext` is per-tool, not per-agent. We built agent isolation at the application layer, but it should be a first-class SDK feature. Third: there is no built-in policy engine. Risk classification of tool calls is a universal need, not application-specific. Fourth: there is no standard audit event schema for agent authorization. We log every tool call with scopes, connection, credentialsContext, risk level, and outcome -- but every developer is inventing this schema independently.
+The most underrated discovery was `credentialsContext`. This single configuration parameter on each `withTokenVault()` call controls whether credentials are cached across tool invocations (`'thread'`) or resolved fresh per call (`'tool-call'`). We use `'thread'` for all reads and `'tool-call'` for all writes. One line of config. Enormous security impact.
 
-The Permission Dashboard ties it all together: a computed security score (0-100), connected services with READ/WRITE/ADMIN scope badges, a real-time audit trail, a scope request timeline, and a policy rules table showing every tool's risk classification. This is what agent authorization visibility should look like.
+But enforcement without accountability is incomplete. So we built a SHA-256 hash-chained audit trail. Every tool call gets logged with its scopes, connection, risk level, and timestamp. Each entry's hash is computed from the previous entry's hash plus its own payload. Modify any entry, and every subsequent hash breaks. The `verifyAuditChain()` function walks the chain and pinpoints the exact index of any tampering.
 
-Building Scope Lock changed how we think about the boundary between an AI agent and the services it accesses. Token Vault handles credential brokering. What is still missing is the policy layer (what should the agent be allowed to do?), the isolation layer (how do we prevent one agent from accessing another agent's credentials?), and the accountability layer (who accessed what, when, and with what authority?). We built all three. Auth0 should ship them as platform features.
+On top of the audit trail, we added anomaly detection. Four patterns: rapid privilege escalation (GREEN to RED within 60 seconds), high-frequency calls (>10 per minute), cross-service scope hopping (3+ connections in 30 seconds), and novel tool usage. These run in real-time after every tool call.
+
+We added scope TTL -- time-bound grants that expire automatically. GREEN scopes last 30 minutes. AMBER scopes last 10 minutes. RED scopes last 5 minutes. Without active renewal, all permissions decay to zero. This transforms the security model from "grant once, persist forever" to "access naturally expires."
+
+We added per-agent rate limiting: Reader gets 50 calls per 5 minutes, Writer gets 15, Commerce gets 3. We added cryptographic delegation chains that hash-sign every agent switch. We added Rich Authorization Requests per RFC 9396 for structured transaction details.
+
+The result is 157 automated tests across 8 test files and 14 live security assertions, all passing. A security operations dashboard with a scope topology, JWT inspector, analytics with pure CSS charts, consent timeline, and anomaly alerts. A sandbox that runs security assertions against the live system on every page load.
+
+The gap we found is clear: Token Vault handles credential brokering beautifully. What is missing is everything above it. The policy engine, the per-agent isolation, the audit trail, the anomaly detection, the scope expiry, the rate limiting -- these are not application-specific concerns. They are universal needs for any agent that touches real user data. Auth0 should ship them as platform features.
+
+We built what the platform does not yet provide. And we proved it works with 157 tests.
 
 ---
 
@@ -175,92 +225,92 @@ Building Scope Lock changed how we think about the boundary between an AI agent 
 
 ## Demo Video Script (3:00)
 
-### 0:00 - 0:12 | Hook
+### 0:00 - 0:15 | Hook
 
 [Screen: Black screen, then fade into the Scope Lock login page]
 
-"Every AI agent asks for all your permissions upfront. Scope Lock takes the opposite approach -- three specialized agents, a risk-tiered policy engine, and zero permissions until you grant them one by one. Let me show you what that looks like."
+"Every AI agent asks for all your permissions upfront. Scope Lock takes the opposite approach: three isolated agents, a risk-tiered policy engine, SHA-256 audit chains, anomaly detection, automatic scope expiry, and zero permissions until you earn them one by one. This is the Email Triage Agent."
 
-### 0:12 - 0:35 | Zero-Trust Start State and Scope Presets
+### 0:15 - 0:35 | Zero-Trust Start State and Scope Presets
 
-[Screen: Log in via Auth0. Land on the chat page showing the agent selector with three agents: Reader, Writer, Commerce. The Active Scopes Bar reads "Zero Trust -- No services authorized."]
+[Screen: Log in via Auth0. Land on the chat page. Show the agent selector with three agents: Reader, Writer, Commerce. The Active Scopes Bar reads "No services authorized."]
 
-"Three agents, each with isolated credential boundaries. The Reader Agent can only call read tools. The Writer Agent can only call write tools. The Commerce Agent only handles purchases. This is not prompt engineering -- these are hard boundaries enforced at the SDK layer."
+"Three agents, each with isolated credential boundaries enforced at the SDK layer. The Reader can only call read tools. The Writer can only call write tools. The Commerce Agent only handles purchases."
 
-[Screen: Show the Scope Preset Selector above the chat. Click through Lockdown (red), Privacy (green), Productivity (amber)]
+[Screen: Show the Scope Preset Selector. Click through Lockdown (zero tools), Privacy (read-only), Productivity (full access)]
 
-"Scope Presets let me control the agent's access posture. Lockdown disables all tools. Privacy allows read-only. Productivity unlocks everything. I'll start in Privacy mode."
+"Scope Presets add a second filter layer. Lockdown disables all tools. Privacy restricts to read-only. Tools must pass both the agent filter and the preset filter. I'll start with the Reader Agent in Privacy mode."
 
-### 0:35 - 1:10 | Progressive Authorization -- Gmail Read
+### 0:35 - 1:05 | Email Triage -- Progressive Authorization
 
-[Screen: Select the Reader Agent. Type "Show me my recent emails" and send]
+[Screen: Select the Reader Agent. Type "Triage my inbox" and send]
 
-"I'll ask the Reader Agent for my emails. Watch what happens."
+"The agent needs gmail.readonly. Watch the branded consent card."
 
-[Screen: The agent explains it needs gmail.readonly. Then the branded authorization card appears -- showing the Google service icon, "Read Only" risk badge, "Gmail Read" scope, and the description "Read your email subjects, senders, and content." The security footer reads "Credentials are managed by Auth0 Token Vault. The AI agent never sees your raw tokens."]
+[Screen: The branded authorization card appears showing Google icon, "Read Only" risk badge, "Gmail Read" scope, description "Read your email subjects, senders, and content." Security footer explains Token Vault credential management]
 
-"Instead of a generic popup, you get a branded authorization card. It shows exactly which service, which scope, the risk level, and what data will be accessed. This is informed consent."
+"Custom consent card -- not a generic popup. Service name, risk level, exactly what data will be accessed, and a note that the agent never sees raw tokens."
 
-[Screen: Click "Authorize Google Access." Complete the Google OAuth flow in the popup. The popup closes. The Active Scopes Bar updates -- a green "Gmail" pill appears with a lock icon indicating read-only access]
+[Screen: Authorize. The Active Scopes Bar updates with a green Gmail indicator. The agent streams back a formatted triage report: URGENT / ACTION / INFO categories with suggested actions]
 
-"After I authorize, watch the Active Scopes Bar -- it just went from zero trust to showing Gmail with a read-only indicator. The agent resumes and shows my emails."
+"The scopes bar went from zero trust to Gmail read-only. The agent triages emails into categories with suggested actions -- exactly what a busy professional needs."
 
-[Screen: Agent streams back formatted email results]
+### 1:05 - 1:35 | Scope Escalation -- Write Operations
 
-### 1:10 - 1:40 | Agent Switching and Write Operations
+[Screen: Switch to the Writer Agent. Type "Draft a reply to the first urgent email saying I'll review it Friday"]
 
-[Screen: Switch to the Writer Agent using the agent selector. The agent card shows amber border and "MEDIUM" risk badge]
+"Now I need the Writer Agent for gmail.compose. Watch the scope escalation."
 
-"Now I switch to the Writer Agent. Notice the amber risk indicator -- this agent handles write operations."
+[Screen: New consent card with "Write Access" amber badge. Authorize. The Active Scopes Bar updates -- Gmail indicator changes from green to amber]
 
-[Screen: Type "Draft a reply to the latest email saying I'll review it Friday" and send]
+"Amber badge -- write access. Different scope, different consent, different risk level. The scopes bar reflects the escalation in real-time."
 
-[Screen: A new branded authorization card appears -- this time showing "Write Access" in amber, with "Gmail Write" scope and description "Create and send email drafts on your behalf"]
+[Screen: Agent drafts the reply. The risk badge inline shows "AMBER -- Write Operation"]
 
-"A separate authorization card for the compose scope. Amber badge -- write access. Different scope, different consent, different risk level."
+"And that draft was logged in the tamper-proof audit trail with a SHA-256 hash chained to the previous entry."
 
-[Screen: Authorize. The Active Scopes Bar updates -- Gmail pill changes from green (read) to amber (write). The RiskBadge component shows "Write Operation -- Elevated Access" inline with the tool call]
+### 1:35 - 1:55 | Commerce Agent -- CIBA Step-Up
 
-"The scopes bar shows Gmail upgraded to write access. And the risk badge right in the chat confirms this was an AMBER-tier operation."
+[Screen: Switch to Commerce Agent. Type "Buy me 2 AirPods"]
 
-### 1:40 - 2:05 | CIBA Step-Up for Purchases
+"RED-tier operation. Every action requires step-up authentication."
 
-[Screen: Switch to the Commerce Agent. Card shows red border and "HIGH" risk badge]
+[Screen: CIBA triggers -- "Waiting for approval on your device..." Show Guardian push notification with binding message "Do you want to buy 2 AirPods?" Tap Approve]
 
-"The Commerce Agent is RED-tier. Every action requires step-up authentication."
+"CIBA sends a push to my phone through Auth0 Guardian. The agent blocks until I approve. No silent purchases."
 
-[Screen: Type "Buy me 2 AirPods" and send. The agent explains it will trigger CIBA. The RiskBadge shows "High Risk -- Step-up Auth Required" in red. The CIBA flow triggers -- "Waiting for approval on your device..."]
+### 1:55 - 2:35 | Security Operations Dashboard
 
-"CIBA sends a push notification to my phone through Auth0 Guardian. The agent blocks until I explicitly approve. No silent purchases."
+[Screen: Navigate to the Dashboard. Security Score gauge animates. Scroll through panels]
 
-[Screen: Show the Guardian push notification on a phone mockup with "Do you want to buy 2 AirPods?" binding message. Tap Approve]
+"Full security operations dashboard. Security score out of 100."
 
-"Approved on my device. The agent confirms the purchase."
+[Screen: Show Scope Topology visualization -- agents connected to tools connected to services with colored lines]
 
-### 2:05 - 2:40 | Permission Dashboard
+"Scope topology showing every agent-to-tool-to-service boundary."
 
-[Screen: Navigate to the Permission Dashboard. The Security Score ring animates to show a score (e.g., 75). Connected services show Google with READ and WRITE scope badges, color-coded green and amber]
+[Screen: Show JWT Token Inspector with decoded claims and expiry countdown. Show Scope Analytics with donut chart and stacked bar charts]
 
-"The Permission Dashboard is a full security operations view. Security score out of 100, computed from your active scopes -- fewer scopes, higher score."
+"JWT inspector with live expiry countdown. Scope analytics with read/write ratio and usage over time -- all pure CSS, no charting libraries."
 
-[Screen: Scroll to the Audit Trail section showing tool calls with icons, scope badges, timestamps, and OK/Fail status. Then scroll to the Scope Request Timeline showing granted/denied dots on a vertical timeline]
+[Screen: Show Consent History Timeline with alternating event cards. Show Delegation Chain with SHA-256 hashes between agent nodes]
 
-"Every tool call logged in the audit trail -- tool name, scopes used, risk classification, timestamp. The scope request timeline tracks every authorization flow."
+"Consent timeline tracking every authorization decision. Delegation chain with cryptographic hashes signing every agent switch."
 
-[Screen: Scroll to the Policy Rules table showing GREEN/AMBER/RED classifications for each tool]
+[Screen: Show Scope Expiry panel with countdown timers -- GREEN 28m remaining, AMBER 8m, RED 3m]
 
-"The policy rules table. Every tool, its risk tier, and what action is required. Full transparency."
+"Scope TTL -- every grant auto-expires. GREEN scopes last 30 minutes, AMBER 10, RED 5. Access naturally decays to zero."
 
-### 2:40 - 2:55 | Insights Page
+### 2:35 - 2:50 | Security Sandbox
 
-[Screen: Navigate to the Insights page. Show the four sections: Patterns Discovered, Pain Points, Gaps Identified, Recommendations for Auth0]
+[Screen: Navigate to Security page, Tests tab. Show 14 assertions running and all passing with green checkmarks. Categories: Isolation, Policy, Credential, Audit]
 
-"The Insights page documents everything we learned. Patterns like credentialsContext tuning. Pain points like Google OAuth configuration. Gaps -- no scope expiry, no per-agent boundaries in the SDK, no built-in policy engine. And six concrete recommendations for Auth0."
+"14 security assertions running against the live system. Agent isolation boundaries, policy classification, credential scoping, audit chain integrity -- all verified on every page load. 157 total tests across the project."
 
-### 2:55 - 3:00 | Closing
+### 2:50 - 3:00 | Closing
 
-[Screen: Split view -- chat with Active Scopes Bar filled on left, Dashboard with security score and topology on right]
+[Screen: Split view -- chat with triage report on left, dashboard with topology and analytics on right]
 
-"Scope Lock. Three isolated agents. A risk-tiered policy engine. Branded consent. Full audit trail. Zero upfront permissions. Because AI agents should earn access, not assume it."
+"Scope Lock. An Email Triage Agent with ten layers of authorization control. Three isolated agents. SHA-256 audit chains. Anomaly detection. Automatic scope expiry. 157 automated tests. Built with Auth0 Token Vault and GPT-4o. Because AI agents should earn access, not assume it."
 
 [Screen: Fade to Scope Lock logo with "Built with Auth0 Token Vault" and the GitHub URL]

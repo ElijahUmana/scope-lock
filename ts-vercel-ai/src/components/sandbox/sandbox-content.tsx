@@ -192,12 +192,12 @@ function SummaryBanner({
           : 'border-red-500/20 bg-red-500/5',
       )}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {allPassed ? (
-            <ShieldCheck className="h-6 w-6 text-emerald-400" />
+            <ShieldCheck className="h-6 w-6 text-emerald-400 shrink-0" />
           ) : (
-            <ShieldAlert className="h-6 w-6 text-red-400" />
+            <ShieldAlert className="h-6 w-6 text-red-400 shrink-0" />
           )}
           <div>
             <h3 className="text-sm font-semibold text-white">
@@ -212,7 +212,7 @@ function SummaryBanner({
         </div>
         <div
           className={cn(
-            'rounded-full px-3 py-1 text-xs font-mono font-semibold',
+            'rounded-full px-3 py-1 text-xs font-mono font-semibold shrink-0',
             allPassed
               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
               : 'bg-red-500/10 text-red-400 border border-red-500/20',
@@ -221,7 +221,7 @@ function SummaryBanner({
           {report.passed}/{report.total}
         </div>
       </div>
-      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-white/5">
+      <div className="flex flex-wrap items-center gap-3 md:gap-4 mt-3 pt-3 border-t border-white/5">
         <div className="flex items-center gap-1.5 text-[11px] text-white/40">
           <Clock className="w-3 h-3" />
           <span>Last run: {lastRunAt.toLocaleString()}</span>
@@ -314,7 +314,7 @@ export default function SandboxContent() {
           onClick={runTests}
           disabled={state.status === 'running'}
           className={cn(
-            'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer',
+            'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer min-h-[44px]',
             state.status === 'running'
               ? 'bg-white/5 border border-white/10 text-white/40 cursor-not-allowed'
               : 'bg-blue-500/10 border border-blue-500/30 text-blue-300 hover:bg-blue-500/20',
