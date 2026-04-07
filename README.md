@@ -8,6 +8,8 @@ Your AI agent wants access to Gmail, Calendar, and Tasks. Today, you grant every
 
 **Live Demo:** [scope-lock-pi.vercel.app](https://scope-lock-pi.vercel.app)
 
+![Scope Lock Landing Page](ts-vercel-ai/public/images/landing-page.png)
+
 ---
 
 ## How It Works
