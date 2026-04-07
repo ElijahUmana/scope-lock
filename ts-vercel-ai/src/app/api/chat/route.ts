@@ -128,30 +128,27 @@ function getFilteredTools(agentId: string | null, presetId: string): Record<stri
   if (cached) return cached;
 
   const allowedToolNames = agentId ? getToolsForAgent(agentId) : null;
-  const presetToolNames = getPreset(presetId) ? getToolNamesForPreset(presetId) : null;
+  // If presetId is invalid/unknown, fall back to the default 'privacy' preset.
+  // Never skip preset filtering — that would expose all tools.
+  const resolvedPresetId = getPreset(presetId) ? presetId : 'privacy';
+  const presetToolNames = getToolNamesForPreset(resolvedPresetId);
 
-  // Build a Set of names that pass both filters for O(1) lookups
-  let allowedSet: Set<string> | null = null;
-  if (allowedToolNames && presetToolNames !== null) {
+  // Build a Set of names that pass both filters for O(1) lookups.
+  // presetToolNames is always an array (never null) so preset filtering always applies.
+  let allowedSet: Set<string>;
+  if (allowedToolNames) {
     // Intersection of agent tools and preset tools
     const presetSet = new Set(presetToolNames);
     allowedSet = new Set(allowedToolNames.filter((n) => presetSet.has(n)));
-  } else if (allowedToolNames) {
-    allowedSet = new Set(allowedToolNames);
-  } else if (presetToolNames !== null) {
+  } else {
     allowedSet = new Set(presetToolNames);
   }
 
-  let filtered: Record<string, any>;
-  if (allowedSet) {
-    filtered = Object.fromEntries(
-      ALL_TOOL_NAMES
-        .filter((name) => allowedSet!.has(name))
-        .map((name) => [name, ALL_TOOLS[name]]),
-    );
-  } else {
-    filtered = ALL_TOOLS;
-  }
+  const filtered: Record<string, any> = Object.fromEntries(
+    ALL_TOOL_NAMES
+      .filter((name) => allowedSet.has(name))
+      .map((name) => [name, ALL_TOOLS[name]]),
+  );
 
   toolSetCache.set(cacheKey, filtered);
   return filtered;
