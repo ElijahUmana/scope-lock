@@ -95,9 +95,9 @@ export async function POST(req: NextRequest) {
     createTasksTool,
     shopOnlineTool,
     // getContextDocumentsTool, // requires FGA + postgres
-    listRepositories,
-    listGitHubEvents,
-    listSlackChannels,
+    // listRepositories,      // GitHub Token Vault connection not configured — re-enable when ready
+    // listGitHubEvents,      // GitHub Token Vault connection not configured — re-enable when ready
+    // listSlackChannels,     // Slack Token Vault connection not configured — re-enable when ready
   };
 
   const modelMessages = await convertToModelMessages(messages);
