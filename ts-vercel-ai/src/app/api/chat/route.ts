@@ -23,9 +23,11 @@ import { listSlackChannels } from '@/lib/tools/list-slack-channels';
 import { logToolCall } from '@/lib/audit';
 import { recordScopeRequest } from '@/lib/actions/audit';
 import { evaluatePolicy } from '@/lib/policy-engine';
+import { checkForAnomalies } from '@/lib/anomaly-detection';
 import { getPreset, getToolNamesForPreset } from '@/lib/scope-presets';
 import { auth0 } from '@/lib/auth0';
 import { getAgentProfile, getToolsForAgent } from '@/lib/agents';
+import { grantScope } from '@/lib/scope-ttl';
 
 const date = new Date().toISOString();
 
@@ -154,7 +156,7 @@ export async function POST(req: NextRequest) {
                 const meta = TOOL_SCOPE_MAP[part.toolName] ?? { scopes: [], connection: 'unknown', credentialsContext: 'unknown' };
                 const policy = evaluatePolicy(part.toolName, part.input);
                 const now = new Date().toISOString();
-                logToolCall({
+                const auditEntry = logToolCall({
                   toolName: part.toolName,
                   scopes: meta.scopes,
                   timestamp: now,
@@ -165,6 +167,11 @@ export async function POST(req: NextRequest) {
                   credentialsContext: meta.credentialsContext,
                   riskLevel: policy.level,
                 });
+                // Check for anomalous patterns
+                const alerts = checkForAnomalies(userId, auditEntry);
+                if (alerts.length > 0) {
+                  console.warn(`[anomaly] ${alerts.length} alert(s) for user ${userId}:`, alerts.map((a) => a.type));
+                }
                 // Record scope request for the dashboard timeline
                 recordScopeRequest(userId, {
                   connection: meta.connection,
@@ -173,12 +180,14 @@ export async function POST(req: NextRequest) {
                   grantedAt: Date.now(),
                   status: 'granted',
                 });
+                // Track scope grant with TTL for auto-expiry
+                grantScope(userId, meta.connection, meta.scopes, policy.level);
               }
               if (part.type === 'tool-error') {
                 const meta = TOOL_SCOPE_MAP[part.toolName] ?? { scopes: [], connection: 'unknown', credentialsContext: 'unknown' };
                 const policy = evaluatePolicy(part.toolName, part.input);
                 const now = new Date().toISOString();
-                logToolCall({
+                const failedAuditEntry = logToolCall({
                   toolName: part.toolName,
                   scopes: meta.scopes,
                   timestamp: now,
@@ -189,6 +198,11 @@ export async function POST(req: NextRequest) {
                   credentialsContext: meta.credentialsContext,
                   riskLevel: policy.level,
                 });
+                // Check for anomalous patterns on failures too
+                const failAlerts = checkForAnomalies(userId, failedAuditEntry);
+                if (failAlerts.length > 0) {
+                  console.warn(`[anomaly] ${failAlerts.length} alert(s) for user ${userId}:`, failAlerts.map((a) => a.type));
+                }
                 // Record failed scope request
                 recordScopeRequest(userId, {
                   connection: meta.connection,
