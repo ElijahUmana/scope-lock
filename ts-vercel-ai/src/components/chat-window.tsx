@@ -401,10 +401,11 @@ export function ChatWindow(props: {
               messages.length === 0 ? (
                 <div>
                   {props.emptyStateComponent}
-                  {/* Welcome message shows in both modes — content adapts based on agentId presence */}
-                  <div className="flex flex-col max-w-[768px] mx-auto pt-4 w-full px-3 md:px-0">
-                    <ChatMessageBubble message={welcomeMessage} aiEmoji={props.emoji} />
-                  </div>
+                  {props.strictMode && (
+                    <div className="flex flex-col max-w-[768px] mx-auto pt-4 w-full px-3 md:px-0">
+                      <ChatMessageBubble message={welcomeMessage} aiEmoji={props.emoji} />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -418,8 +419,7 @@ export function ChatWindow(props: {
             footer={
               <div className="sticky bottom-4 md:bottom-8 px-3 md:px-2">
                 <ScrollToBottom className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4" />
-                {/* Scope preset selector always visible — users can switch between lockdown/privacy/productivity in any mode */}
-                <ScopePresetSelector activePresetId={presetId} onPresetChange={setPresetId} />
+                {props.strictMode && <ScopePresetSelector activePresetId={presetId} onPresetChange={setPresetId} />}
                 <ChatInput
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
