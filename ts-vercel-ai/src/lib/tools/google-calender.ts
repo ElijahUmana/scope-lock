@@ -64,9 +64,19 @@ export const getCalendarEventsTool = withCalendar(
           if (error.status === 401) {
             throw new TokenVaultError(`Authorization required to access the Token Vault connection.`);
           }
+          if (error.status === 403) {
+            const msg = (error as any).message || '';
+            if (msg.includes('has not been used') || msg.includes('is disabled')) {
+              return {
+                error: true,
+                message: `Google Calendar API is not enabled. Please enable it at https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview and try again.`,
+              };
+            }
+            return { error: true, message: `Calendar access forbidden: ${msg}` };
+          }
         }
 
-        throw error;
+        return { error: true, message: `Calendar error: ${(error as Error)?.message ?? 'Unknown error'}` };
       }
     },
   }),

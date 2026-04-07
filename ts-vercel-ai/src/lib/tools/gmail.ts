@@ -23,8 +23,19 @@ export const gmailSearchTool = withGmailRead(
       resource: z.enum(['messages', 'threads']).optional().describe('Search messages or threads'),
     }),
     execute: async (args) => {
-      const result = await gmailSearch._call(args);
-      return parseGmailOutput(result);
+      try {
+        const result = await gmailSearch._call(args);
+        return parseGmailOutput(result);
+      } catch (error: any) {
+        const msg = error?.message ?? 'Unknown error';
+        if (msg.includes('has not been used') || msg.includes('is disabled')) {
+          return 'Gmail API is not enabled in Google Cloud. Please enable it at https://console.developers.google.com/apis/api/gmail.googleapis.com/overview and try again.';
+        }
+        if (msg.includes('invalid_grant') || msg.includes('Token has been expired')) {
+          return 'Gmail authorization expired. Please go to your Profile page and reconnect your Google account.';
+        }
+        return `Gmail error: ${msg}`;
+      }
     },
   }),
 );
@@ -42,8 +53,19 @@ export const gmailDraftTool = withGmailWrite(
       bcc: z.array(z.string()).optional(),
     }),
     execute: async (args) => {
-      const result = await gmailDraft._call(args);
-      return result;
+      try {
+        const result = await gmailDraft._call(args);
+        return result;
+      } catch (error: any) {
+        const msg = error?.message ?? 'Unknown error';
+        if (msg.includes('has not been used') || msg.includes('is disabled')) {
+          return 'Gmail API is not enabled. Please enable it at https://console.developers.google.com/apis/api/gmail.googleapis.com/overview and try again.';
+        }
+        if (msg.includes('invalid_grant') || msg.includes('Token has been expired')) {
+          return 'Gmail authorization expired. Please reconnect your Google account from the Profile page.';
+        }
+        return `Failed to create draft: ${msg}`;
+      }
     },
   }),
 );

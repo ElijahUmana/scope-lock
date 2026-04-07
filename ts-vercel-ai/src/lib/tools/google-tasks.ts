@@ -58,9 +58,19 @@ export const getTasksTool = withTasks(
           if (error.status === 401) {
             throw new TokenVaultError(`Authorization required to access the Token Vault connection.`);
           }
+          if (error.status === 403) {
+            const msg = (error as any).message || '';
+            if (msg.includes('has not been used') || msg.includes('is disabled')) {
+              return {
+                error: true,
+                message: `Google Tasks API is not enabled. Please enable it at https://console.developers.google.com/apis/api/tasks.googleapis.com/overview and try again.`,
+              };
+            }
+            return { error: true, message: `Tasks access forbidden: ${msg}` };
+          }
         }
 
-        throw error;
+        return { error: true, message: `Tasks error: ${(error as Error)?.message ?? 'Unknown error'}` };
       }
     },
   }),
@@ -116,9 +126,19 @@ export const createTasksTool = withTasks(
           if (error.status === 401) {
             throw new TokenVaultError(`Authorization required to access the Token Vault connection.`);
           }
+          if (error.status === 403) {
+            const msg = (error as any).message || '';
+            if (msg.includes('has not been used') || msg.includes('is disabled')) {
+              return {
+                error: true,
+                message: `Google Tasks API is not enabled. Please enable it at https://console.developers.google.com/apis/api/tasks.googleapis.com/overview and try again.`,
+              };
+            }
+            return { error: true, message: `Tasks access forbidden: ${msg}` };
+          }
         }
 
-        throw error;
+        return { error: true, message: `Failed to create task: ${(error as Error)?.message ?? 'Unknown error'}` };
       }
     },
   }),
