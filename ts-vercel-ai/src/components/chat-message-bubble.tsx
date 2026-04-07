@@ -62,7 +62,21 @@ function getToolCallsFromMessage(message: UIMessage): Array<{
   return toolCalls;
 }
 
-function ToolCallDisplay({ toolCall }: { 
+const TOOL_LABELS: Record<string, { label: string; icon: string }> = {
+  gmailSearchTool: { label: 'Gmail Search', icon: '📧' },
+  gmailDraftTool: { label: 'Gmail Draft', icon: '✏️' },
+  getCalendarEventsTool: { label: 'Calendar', icon: '📅' },
+  getTasksTool: { label: 'Tasks', icon: '✅' },
+  createTasksTool: { label: 'Create Task', icon: '➕' },
+  listRepositories: { label: 'GitHub Repos', icon: '📦' },
+  listGitHubEvents: { label: 'GitHub Activity', icon: '⚡' },
+  listSlackChannels: { label: 'Slack Channels', icon: '💬' },
+  getUserInfoTool: { label: 'User Info', icon: '👤' },
+  shopOnlineTool: { label: 'Shop Online', icon: '🛒' },
+  serpApiTool: { label: 'Web Search', icon: '🔍' },
+};
+
+function ToolCallDisplay({ toolCall }: {
   toolCall: {
     toolCallId: string;
     toolName: string;
@@ -71,49 +85,16 @@ function ToolCallDisplay({ toolCall }: {
     status: 'pending' | 'complete' | 'error';
   }
 }) {
-  const { toolName, args, result, status } = toolCall;
+  const { toolName, status } = toolCall;
+  const meta = TOOL_LABELS[toolName] ?? { label: toolName, icon: '🔧' };
 
   return (
-    <div className="border border-gray-200 rounded-lg p-3 mb-2 bg-gray-50 dark:bg-gray-800 dark:border-gray-600">
-      <div className="flex items-center gap-2 mb-2">
-        {status === 'pending' && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
-        {status === 'complete' && <CheckCircle className="w-4 h-4 text-green-500" />}
-        {status === 'error' && <AlertCircle className="w-4 h-4 text-red-500" />}
-        <span className="font-medium text-sm text-gray-900 dark:text-gray-100">
-          {status === 'pending' && `Calling ${toolName}...`}
-          {status === 'complete' && `Called ${toolName}`}
-          {status === 'error' && `Error calling ${toolName}`}
-        </span>
-      </div>
-
-      {/* Show tool arguments/input */}
-      {args && Object.keys(args).length > 0 && (
-        <div className="mb-2">
-          <div className="text-xs text-gray-600 dark:text-gray-400 mb-1 font-medium">Input:</div>
-          <div className="bg-white dark:bg-gray-900 rounded px-3 py-2 text-xs font-mono border border-gray-200 dark:border-gray-700">
-            {Object.entries(args).map(([key, value]) => (
-              <div key={key} className="mb-1 last:mb-0">
-                <span className="text-blue-600 dark:text-blue-400">{key}:</span>{' '}
-                <span className="text-gray-800 dark:text-gray-200">
-                  {typeof value === 'string' ? `"${value}"` : JSON.stringify(value)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Show tool result/output */}
-      {result !== undefined && (
-        <div>
-          <div className="text-xs text-gray-600 dark:text-gray-400 mb-1 font-medium">Output:</div>
-          <div className="bg-green-50 dark:bg-green-900/20 rounded px-3 py-2 text-xs border border-green-200 dark:border-green-800">
-            <span className="text-green-800 dark:text-green-200">
-              {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
-            </span>
-          </div>
-        </div>
-      )}
+    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border border-white/10 bg-white/5 mb-1 mr-1">
+      {status === 'pending' && <Loader2 className="w-3 h-3 animate-spin text-blue-400" />}
+      {status === 'complete' && <CheckCircle className="w-3 h-3 text-green-400" />}
+      {status === 'error' && <AlertCircle className="w-3 h-3 text-red-400" />}
+      <span>{meta.icon}</span>
+      <span className="text-white/80">{meta.label}</span>
     </div>
   );
 }
