@@ -3,6 +3,7 @@ import { AgentSelector } from '@/components/agent-selector';
 import { OnboardingOverlay } from '@/components/onboarding/onboarding-overlay';
 import { GuideInfoBox } from '@/components/guide/GuideInfoBox';
 import { Button } from '@/components/ui/button';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { auth0 } from '@/lib/auth0';
 
 const FEATURES = [
@@ -23,23 +24,23 @@ export default async function Home() {
     return (
       <div className="min-h-full overflow-y-auto">
         {/* Hero */}
-        <div className="flex flex-col items-center justify-center text-center px-4 pt-16 pb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-300 text-xs mb-6">
+        <div className="flex flex-col items-center justify-center text-center px-4 pt-10 md:pt-16 pb-10 md:pb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-300 text-xs mb-4 md:mb-6">
             <ShieldCheck className="w-3 h-3" />
             Zero-trust authorization for AI agents
           </div>
-          <h1 className="text-5xl md:text-7xl font-bold text-white mb-4 tracking-tight">Scope Lock</h1>
-          <p className="text-xl md:text-2xl text-white/60 mb-2">AI agents should earn access, not assume it.</p>
-          <p className="text-sm text-white/40 max-w-xl mb-8">Progressive authorization for AI agents. Every permission earned. Every action audited. Every credential isolated.</p>
-          <div className="flex gap-4">
+          <h1 className="text-4xl md:text-7xl font-bold text-white mb-4 tracking-tight">Scope Lock</h1>
+          <p className="text-lg md:text-2xl text-white/60 mb-2">AI agents should earn access, not assume it.</p>
+          <p className="text-sm text-white/40 max-w-xl mb-6 md:mb-8 px-2">Progressive authorization for AI agents. Every permission earned. Every action audited. Every credential isolated.</p>
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
             <Button asChild size="lg">
-              <a href="/auth/login" className="flex items-center gap-2 px-6">
+              <a href="/auth/login" className="flex items-center justify-center gap-2 px-6 min-h-[44px]">
                 <Unlock className="w-4 h-4" />
                 Try It Now
               </a>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <a href="/auth/login?screen_hint=signup" className="flex items-center gap-2 px-6">
+              <a href="/auth/login?screen_hint=signup" className="flex items-center justify-center gap-2 px-6 min-h-[44px]">
                 <BarChart3 className="w-4 h-4" />
                 View Dashboard
               </a>
@@ -48,11 +49,11 @@ export default async function Home() {
         </div>
 
         {/* Features */}
-        <div className="max-w-5xl mx-auto px-4 pb-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="max-w-5xl mx-auto px-4 pb-10 md:pb-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {FEATURES.map((f) => (
-              <div key={f.title} className={`border rounded-xl p-5 ${f.color} hover:shadow-lg transition-shadow`}>
-                <f.icon className="w-6 h-6 text-white/80 mb-3" />
+              <div key={f.title} className={`border rounded-xl p-4 md:p-5 ${f.color} hover:shadow-lg transition-shadow`}>
+                <f.icon className="w-5 h-5 md:w-6 md:h-6 text-white/80 mb-2 md:mb-3" />
                 <h3 className="text-sm font-bold text-white mb-1">{f.title}</h3>
                 <p className="text-xs text-white/50">{f.description}</p>
               </div>
@@ -61,16 +62,16 @@ export default async function Home() {
         </div>
 
         {/* How it works */}
-        <div className="max-w-5xl mx-auto px-4 pb-12">
-          <h2 className="text-lg font-semibold text-white/80 text-center mb-6">How It Works</h2>
+        <div className="max-w-5xl mx-auto px-4 pb-10 md:pb-12">
+          <h2 className="text-lg font-semibold text-white/80 text-center mb-4 md:mb-6">How It Works</h2>
           <div className="flex flex-wrap items-center justify-center gap-2">
             {STEPS.map((step, i) => (
-              <div key={step} className="flex items-center gap-2">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
-                  <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs text-white font-bold">{i + 1}</span>
-                  <span className="text-xs text-white/70">{step}</span>
+              <div key={step} className="flex items-center gap-1.5 md:gap-2">
+                <div className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+                  <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs text-white font-bold shrink-0">{i + 1}</span>
+                  <span className="text-xs text-white/70 whitespace-nowrap">{step}</span>
                 </div>
-                {i < STEPS.length - 1 && <ChevronRight className="w-3 h-3 text-white/20" />}
+                {i < STEPS.length - 1 && <ChevronRight className="w-3 h-3 text-white/20 hidden sm:block" />}
               </div>
             ))}
           </div>
@@ -88,20 +89,27 @@ export default async function Home() {
 
   const InfoCard = (
     <GuideInfoBox>
-      <ul>
-        <li className="text-l">
-          <span className="ml-2">
-            Select an agent above, choose a scope preset, then start chatting. The agent will request permissions as needed.
-          </span>
-        </li>
-      </ul>
+      <div className="space-y-2">
+        <p className="text-base font-medium text-white/80">Email Triage Agent</p>
+        <p className="text-sm text-white/50">
+          Your AI inbox assistant. Say &quot;triage my inbox&quot; to categorize emails as Urgent, Action, Info, or Low Priority — then act on them.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2 pt-1 text-xs text-white/40">
+          <span className="px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-300">1. Read emails (gmail.readonly)</span>
+          <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300">2. Draft replies (gmail.compose)</span>
+          <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300">3. Check calendar (calendar.events)</span>
+          <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300">4. Create tasks (tasks)</span>
+        </div>
+      </div>
     </GuideInfoBox>
   );
 
   return (
     <>
       <OnboardingOverlay />
-      <AgentSelector userName={session?.user?.name ?? 'there'} infoCard={InfoCard} />
+      <ErrorBoundary pageName="Chat">
+        <AgentSelector userName={session?.user?.name ?? 'there'} infoCard={InfoCard} />
+      </ErrorBoundary>
     </>
   );
 }

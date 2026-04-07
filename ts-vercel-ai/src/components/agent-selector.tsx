@@ -20,7 +20,7 @@ function AgentCard({ profile, selected, onSelect }: { profile: AgentProfile; sel
     <button
       onClick={onSelect}
       className={cn(
-        'flex flex-col gap-2 p-4 rounded-lg border transition-all text-left cursor-pointer',
+        'flex flex-col gap-2 p-3 md:p-4 rounded-lg border transition-all text-left cursor-pointer min-h-[44px]',
         selected
           ? `${risk.border} ${risk.bg} ring-1 ring-white/20`
           : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/[0.07]',
@@ -55,11 +55,12 @@ export function AgentSelector({ userName, infoCard }: { userName: string; infoCa
       endpoint="api/chat"
       emoji={agent.icon}
       agentId={agentId}
-      placeholder={`Hello ${userName}, I'm the ${agent.name}. ${agent.description}`}
+      userName={userName}
+      placeholder={`I'm your email triage assistant. Say 'triage my inbox' to get started, or ask me anything about your connected services.`}
       emptyStateComponent={
-        <div className="flex flex-col gap-6 max-w-[768px] mx-auto">
+        <div className="flex flex-col gap-4 md:gap-6 max-w-[768px] mx-auto px-3 md:px-0">
           {infoCard}
-          <div className="px-2">
+          <div className="px-0 md:px-2">
             <h3 className="text-sm font-medium text-white/60 mb-3 flex items-center gap-2">
               <Shield className="w-4 h-4" />
               Select an agent — each has isolated credential boundaries

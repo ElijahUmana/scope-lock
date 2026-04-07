@@ -146,5 +146,73 @@ describe('Audit Trail', () => {
       const result = verifyAuditChain('test-user');
       expect(result.valid).toBe(true);
     });
+
+    it('returns valid for a single entry', () => {
+      logToolCall(makeEntry());
+      const result = verifyAuditChain('test-user');
+      expect(result.valid).toBe(true);
+    });
+
+    it('each entry hash is a 64-char hex string (SHA-256)', () => {
+      logToolCall(makeEntry());
+      logToolCall(makeEntry({ toolName: 'gmailDraftTool' }));
+      const log = getAuditLog('test-user');
+      for (const entry of log) {
+        expect(entry.hash).toMatch(/^[0-9a-f]{64}$/);
+      }
+    });
+
+    it('consecutive entries have distinct hashes', () => {
+      const e1 = logToolCall(makeEntry({ toolName: 'gmailSearchTool' }));
+      const e2 = logToolCall(makeEntry({ toolName: 'gmailDraftTool' }));
+      expect(e1.hash).not.toBe(e2.hash);
+    });
+
+    it('chain links: entry N previousHash === entry N-1 hash', () => {
+      const e1 = logToolCall(makeEntry());
+      const e2 = logToolCall(makeEntry({ toolName: 'createTasksTool' }));
+      const e3 = logToolCall(makeEntry({ toolName: 'shopOnlineTool' }));
+      expect(e2.previousHash).toBe(e1.hash);
+      expect(e3.previousHash).toBe(e2.hash);
+    });
+
+    it('detects tampering when a hash is corrupted', () => {
+      logToolCall(makeEntry());
+      logToolCall(makeEntry({ toolName: 'gmailDraftTool' }));
+
+      // Corrupt the first entry's hash directly
+      const log = getAuditLog('test-user');
+      log[0].hash = 'f'.repeat(64);
+
+      const result = verifyAuditChain('test-user');
+      expect(result.valid).toBe(false);
+      // The break should be detected at index 0 or 1 (depends on
+      // whether the verifier checks the entry's own hash or the
+      // chain link to the next entry)
+      expect(result.brokenAt).toBeDefined();
+    });
+
+    it('returns the correct brokenAt index for mid-chain corruption', () => {
+      logToolCall(makeEntry());
+      logToolCall(makeEntry({ toolName: 'gmailDraftTool' }));
+      logToolCall(makeEntry({ toolName: 'shopOnlineTool' }));
+
+      const log = getAuditLog('test-user');
+      // Corrupt the middle entry
+      log[1].hash = 'a'.repeat(64);
+
+      const result = verifyAuditChain('test-user');
+      expect(result.valid).toBe(false);
+      expect(result.brokenAt).toBe(1);
+    });
+
+    it('remains valid when different users have independent chains', () => {
+      logToolCall(makeEntry({ userId: 'test-user' }));
+      logToolCall(makeEntry({ userId: 'test-user', toolName: 'gmailDraftTool' }));
+      logToolCall(makeEntry({ userId: 'other-user' }));
+
+      expect(verifyAuditChain('test-user').valid).toBe(true);
+      expect(verifyAuditChain('other-user').valid).toBe(true);
+    });
   });
 });

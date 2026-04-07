@@ -291,7 +291,7 @@ function MatrixCell({
         </div>
 
         {/* Hover tooltip */}
-        <div className="invisible group-hover:visible absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg bg-black/95 border border-white/10 text-xs text-white/90 whitespace-nowrap shadow-xl pointer-events-none">
+        <div className="invisible group-hover:visible absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg bg-black/95 border border-white/10 text-xs text-white/90 whitespace-normal max-w-[200px] md:whitespace-nowrap md:max-w-none shadow-xl pointer-events-none">
           {tooltipText}
           <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px">
             <div className="border-4 border-transparent border-t-black/95" />

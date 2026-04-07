@@ -1,7 +1,7 @@
 'use client';
 
 import { ShieldCheck, AlertTriangle, ShieldAlert } from 'lucide-react';
-import type { RiskLevel } from '@/lib/policy-engine';
+import type { RiskLevel } from '@/lib/policy-constants';
 
 const RISK_CONFIG: Record<RiskLevel, {
   icon: React.ReactNode;

@@ -41,11 +41,12 @@ function getToolCallsFromMessage(message: UIMessage): Array<{
     if (part?.type && part.type.startsWith('tool-') && part.toolCallId) {
       const toolName = part.type.replace('tool-', '');
       
-      // Determine status based on available information
+      // Determine status based on the SDK's state field.
+      // SDK states: 'input-streaming' | 'input-available' | 'output-available' | 'output-error' | 'output-denied'
       let status: 'pending' | 'complete' | 'error' = 'pending';
-      if (part.state === 'output-available' || part.output !== undefined) {
+      if (part.state === 'output-available') {
         status = 'complete';
-      } else if (part.state === 'error' || part.isError) {
+      } else if (part.state === 'output-error' || part.state === 'output-denied') {
         status = 'error';
       }
       
@@ -113,7 +114,7 @@ export function ChatMessageBubble(props: { message: UIMessage; aiEmoji?: string 
       )}
     >
       {message.role !== 'user' && (
-        <div className="mr-4 -mt-2 mt-1 border bg-secondary rounded-full w-10 h-10 flex-shrink-0 flex items-center justify-center">
+        <div className="mr-4 mt-1 border bg-secondary rounded-full w-10 h-10 flex-shrink-0 flex items-center justify-center">
           {aiEmoji}
         </div>
       )}

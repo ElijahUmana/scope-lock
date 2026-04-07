@@ -25,11 +25,21 @@ import {
   User,
   Globe,
   Network,
+  ChevronDown,
+  MessageCircle,
+  ArrowRight,
+  Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
 import ScopeTopology from './scope-topology';
 import ConsentTimeline from './consent-timeline';
+import ScopeAnalytics from './scope-analytics';
+import DelegationChain from './delegation-chain';
+import TokenInspector from './token-inspector';
+import ScopeExpiry from './scope-expiry';
+import TokenLifecycle from './token-lifecycle';
 
 import {
   ConnectedAccount,
@@ -42,7 +52,7 @@ import {
   fetchAuditEntries,
   fetchScopeRequests,
 } from '@/lib/actions/audit';
-import { getPolicyRules, type PolicyRule } from '@/lib/policy-engine';
+import { POLICY_RULES, type PolicyRule } from '@/lib/policy-constants';
 
 interface KeyValueMap {
   [key: string]: any;
@@ -189,8 +199,18 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
 
 function computeSecurityScore(accounts: ConnectedAccount[]): {
   score: number;
+  isEmpty: boolean;
   factors: { label: string; impact: number; positive: boolean }[];
 } {
+  // When no accounts are connected, score is not yet meaningful
+  if (accounts.length === 0) {
+    return {
+      score: 0,
+      isEmpty: true,
+      factors: [],
+    };
+  }
+
   let score = 100;
   const factors: { label: string; impact: number; positive: boolean }[] = [];
 
@@ -281,7 +301,7 @@ function computeSecurityScore(accounts: ConnectedAccount[]): {
     positive: true,
   });
 
-  return { score: Math.max(0, Math.min(100, score)), factors };
+  return { score: Math.max(0, Math.min(100, score)), isEmpty: false, factors };
 }
 
 // --- Scope label formatting ---
@@ -380,6 +400,8 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showDemoBanner, setShowDemoBanner] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -391,8 +413,10 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
       setConnectedAccounts(accounts);
       setAuditEntries(entries);
       setScopeRequests(requests);
+      return { entries, requests };
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      return null;
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -400,7 +424,35 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
   }, []);
 
   useEffect(() => {
-    loadData();
+    async function initDashboard() {
+      const result = await loadData();
+
+      // If no audit data exists, seed demo data so the dashboard is not empty
+      if (result && result.entries.length === 0 && result.requests.length === 0) {
+        try {
+          const res = await fetch('/api/seed-demo', { method: 'POST' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.seeded) {
+              setShowDemoBanner(true);
+              await loadData();
+            }
+          }
+        } catch {
+          // Seeding failed silently — dashboard stays empty
+        }
+      } else if (result) {
+        const hasDemo = result.entries.some((e: AuditEntry) =>
+          e.toolName.startsWith('[demo] ')
+        );
+        if (hasDemo) {
+          setShowDemoBanner(true);
+        }
+      }
+    }
+
+    initDashboard();
+
     // Poll for audit entries every 10 seconds
     const interval = setInterval(async () => {
       try {
@@ -410,6 +462,11 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
         ]);
         setAuditEntries(entries);
         setScopeRequests(requests);
+
+        // Hide demo banner once real (non-demo) data appears
+        if (entries.length > 0 && !entries.some((e) => e.toolName.startsWith('[demo] '))) {
+          setShowDemoBanner(false);
+        }
       } catch {
         // Silently continue polling
       }
@@ -449,10 +506,13 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
     );
   }
 
-  const { score, factors } = computeSecurityScore(connectedAccounts);
+  const { score, isEmpty: scoreIsEmpty, factors } = computeSecurityScore(connectedAccounts);
 
   // Build a set of connected service names for quick lookup
   const connectedServices = new Set(connectedAccounts.map((a) => a.connection));
+
+  // Determine if the user has any activity at all
+  const hasActivity = connectedAccounts.length > 0 || auditEntries.length > 0 || scopeRequests.length > 0;
 
   return (
     <div className="space-y-6">
@@ -468,6 +528,46 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
         </button>
       </div>
 
+      {/* Demo data banner */}
+      {showDemoBanner && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-indigo-500/10 border border-indigo-500/25">
+          <Eye className="h-4 w-4 text-indigo-300 flex-shrink-0" />
+          <p className="text-sm text-indigo-200/80">
+            Demo data — interact with the agent to see your real activity
+          </p>
+        </div>
+      )}
+
+      {/* Get Started Card — shown only when the dashboard is empty */}
+      {!hasActivity && (
+        <div className="bg-gradient-to-br from-indigo-500/15 via-purple-500/10 to-cyan-500/10 backdrop-blur-sm rounded-lg border border-indigo-500/30 p-6">
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-xl bg-indigo-500/20 flex-shrink-0">
+              <Sparkles className="h-6 w-6 text-indigo-300" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-semibold text-white mb-2">Welcome to your Permission Dashboard</h2>
+              <p className="text-sm text-white/70 leading-relaxed mb-4">
+                Start by chatting with an agent on the Chat page. As you interact, your security data will populate here in real-time.
+              </p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <a
+                  href="/chat"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-500/30 hover:bg-indigo-500/40 rounded-lg border border-indigo-500/40 transition-colors"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Open Chat
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </a>
+                <span className="text-xs text-white/40">
+                  Try selecting the Reader Agent and asking &quot;What are my recent emails?&quot;
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top row: Security Score + Active Scopes */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Security Score Panel */}
@@ -477,29 +577,67 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
             <h2 className="text-lg font-semibold text-white">Security Score</h2>
           </div>
 
-          <div className="flex flex-col items-center mb-6">
-            <SecurityScoreRing score={score} />
-          </div>
-
-          <div className="space-y-2">
-            {factors.map((factor, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs">
-                {factor.positive ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
-                ) : (
-                  <ShieldAlert className="h-3.5 w-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
-                )}
-                <span className={factor.positive ? 'text-white/60' : 'text-white/80'}>
-                  {factor.label}
-                  {factor.impact !== 0 && (
-                    <span className={factor.impact > 0 ? 'text-emerald-400 ml-1' : 'text-amber-400 ml-1'}>
-                      ({factor.impact > 0 ? '+' : ''}{factor.impact})
-                    </span>
-                  )}
-                </span>
+          {scoreIsEmpty ? (
+            <div className="flex flex-col items-center text-center py-4">
+              <div className="relative flex items-center justify-center mb-4" style={{ width: 160, height: 160 }}>
+                <svg width={160} height={160} className="-rotate-90">
+                  <circle
+                    cx={80}
+                    cy={80}
+                    r={75}
+                    stroke="rgba(255,255,255,0.08)"
+                    strokeWidth={10}
+                    fill="none"
+                  />
+                  <circle
+                    cx={80}
+                    cy={80}
+                    r={75}
+                    stroke="rgba(255,255,255,0.15)"
+                    strokeWidth={10}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 75}
+                    strokeDashoffset={2 * Math.PI * 75 * 0.75}
+                    className="animate-pulse"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-bold text-white/30">--</span>
+                  <span className="text-xs text-white/40 uppercase tracking-wider mt-1">Pending</span>
+                </div>
               </div>
-            ))}
-          </div>
+              <p className="text-sm text-white/50 max-w-[220px] leading-relaxed">
+                Not yet calculated — interact with an agent to establish a security baseline.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col items-center mb-6">
+                <SecurityScoreRing score={score} />
+              </div>
+
+              <div className="space-y-2">
+                {factors.map((factor, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs">
+                    {factor.positive ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                    ) : (
+                      <ShieldAlert className="h-3.5 w-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
+                    )}
+                    <span className={factor.positive ? 'text-white/60' : 'text-white/80'}>
+                      {factor.label}
+                      {factor.impact !== 0 && (
+                        <span className={factor.impact > 0 ? 'text-emerald-400 ml-1' : 'text-amber-400 ml-1'}>
+                          ({factor.impact > 0 ? '+' : ''}{factor.impact})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Active Scopes Panel */}
@@ -682,14 +820,17 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
         </div>
       </div>
 
-      {/* Scope Topology */}
+      {/* How Scope Lock Works (Scope Topology) */}
       <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
-        <div className="flex items-center gap-2 mb-6">
+        <div className="flex items-center gap-2 mb-2">
           <Network className="h-5 w-5 text-white/80" />
           <h2 className="text-lg font-semibold text-white">
-            Scope Topology &mdash; Agent &harr; Service Boundaries
+            How Scope Lock Works
           </h2>
         </div>
+        <p className="text-sm text-white/50 mb-6">
+          Each agent operates within strict permission boundaries. Scope Lock ensures agents only access what they need through the services shown below.
+        </p>
         <ScopeTopology />
       </div>
 
@@ -710,14 +851,75 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
           </div>
 
           {auditEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="p-3 rounded-full bg-white/5 mb-4">
-                <ShieldCheck className="h-8 w-8 text-white/20" />
-              </div>
-              <p className="text-white/40 text-sm mb-1">No tool calls recorded yet</p>
-              <p className="text-white/30 text-xs max-w-[260px]">
-                Start chatting with the AI agent. Tool calls and their scopes will appear here in real time.
+            <div>
+              <p className="text-sm text-white/50 mb-4 leading-relaxed">
+                Start chatting with an agent to see your authorization activity here. Try selecting the Reader Agent and asking &quot;What are my recent emails?&quot;
               </p>
+
+              {/* Sample audit entry */}
+              <div className="relative opacity-60">
+                <div className="absolute -top-2 right-2 z-10">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium uppercase tracking-wider">
+                    Example
+                  </span>
+                </div>
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left">
+                      <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 pl-3 pr-2">Tool</th>
+                      <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 px-2">Scopes</th>
+                      <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 px-2">Time</th>
+                      <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 px-2 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    <tr className="bg-white/[0.03]">
+                      <td className="py-2.5 pl-3 pr-2">
+                        <div className="flex items-center gap-2">
+                          <Search className="h-4 w-4 text-red-400" />
+                          <span className="text-sm text-white/80 font-mono">gmailSearchTool</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-2">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                          gmail.readonly
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-2">
+                        <span className="text-xs text-white/50">just now</span>
+                      </td>
+                      <td className="py-2.5 px-2 text-right">
+                        <span className="flex items-center justify-end gap-1 text-xs text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          OK
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="bg-white/[0.03]">
+                      <td className="py-2.5 pl-3 pr-2">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-blue-400" />
+                          <span className="text-sm text-white/80 font-mono">getCalendarEvents</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-2">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                          calendar.events
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-2">
+                        <span className="text-xs text-white/50">2 min ago</span>
+                      </td>
+                      <td className="py-2.5 px-2 text-right">
+                        <span className="flex items-center justify-end gap-1 text-xs text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          OK
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : (
             <div className="max-h-[400px] overflow-y-auto space-y-0 hide-scrollbar">
@@ -810,14 +1012,43 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
           </div>
 
           {scopeRequests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="p-3 rounded-full bg-white/5 mb-4">
-                <Lock className="h-8 w-8 text-white/20" />
-              </div>
-              <p className="text-white/40 text-sm mb-1">No scope requests yet</p>
-              <p className="text-white/30 text-xs max-w-[260px]">
+            <div>
+              <p className="text-sm text-white/50 mb-4 leading-relaxed">
                 When the AI agent requests access to a service, the progressive authorization flow will be tracked here.
               </p>
+
+              {/* Sample scope request entry */}
+              <div className="relative opacity-60">
+                <div className="absolute -top-2 right-2 z-10">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium uppercase tracking-wider">
+                    Example
+                  </span>
+                </div>
+                <div className="relative">
+                  <div className="absolute left-[15px] top-0 bottom-0 w-px bg-white/10" />
+                  <div className="space-y-4">
+                    <div className="relative flex items-start gap-4 pl-1">
+                      <div className="relative z-10 flex-shrink-0 w-[30px] h-[30px] rounded-full flex items-center justify-center bg-emerald-500/20 border border-emerald-500/40">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                      </div>
+                      <div className="flex-1 min-w-0 pb-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium text-red-400">Google</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider font-medium bg-emerald-500/20 text-emerald-300">
+                            granted
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded border bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                            gmail.readonly
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-white/40">Requested just now</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="max-h-[400px] overflow-y-auto hide-scrollbar">
@@ -894,77 +1125,119 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
         </div>
       </div>
 
-      {/* Policy Rules */}
-      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <Shield className="h-5 w-5 text-white/80" />
-          <h2 className="text-lg font-semibold text-white">Policy Rules</h2>
-        </div>
+      {/* Advanced Section — expandable */}
+      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+        <button
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="w-full flex items-center justify-between p-6 text-left hover:bg-white/5 transition-colors rounded-lg"
+        >
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-white/80" />
+            <h2 className="text-lg font-semibold text-white">Advanced Panels</h2>
+            <span className="text-xs text-white/40 ml-2">
+              Policy Rules, Token Inspector, Scope Analytics, Delegation Chain, and more
+            </span>
+          </div>
+          <ChevronDown className={`h-5 w-5 text-white/50 transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`} />
+        </button>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left border-b border-white/10">
-                <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 pr-4">Tool</th>
-                <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 px-4">Risk Level</th>
-                <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 px-4">Action</th>
-                <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 pl-4">Reason</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {getPolicyRules().map((rule) => (
-                <tr
-                  key={rule.toolName}
-                  className={`${
-                    rule.level === 'GREEN'
-                      ? 'bg-emerald-500/5'
-                      : rule.level === 'AMBER'
-                      ? 'bg-amber-500/5'
-                      : 'bg-red-500/5'
-                  }`}
-                >
-                  <td className="py-2.5 pr-4">
-                    <div className="flex items-center gap-2">
-                      {TOOL_ICONS[rule.toolName] || <Activity className="h-4 w-4 text-white/40" />}
-                      <span className="text-sm text-white/80 font-mono">{rule.toolName}</span>
-                    </div>
-                  </td>
-                  <td className="py-2.5 px-4">
-                    <span
-                      className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border font-medium ${
-                        rule.level === 'GREEN'
-                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                          : rule.level === 'AMBER'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                          : 'bg-red-500/20 text-red-300 border-red-500/30'
-                      }`}
-                    >
-                      {rule.level === 'GREEN' && <ShieldCheck className="h-3 w-3" />}
-                      {rule.level === 'AMBER' && <ShieldAlert className="h-3 w-3" />}
-                      {rule.level === 'RED' && <ShieldAlert className="h-3 w-3" />}
-                      {rule.level}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4">
-                    <span className="text-sm text-white/60">{rule.action}</span>
-                  </td>
-                  <td className="py-2.5 pl-4">
-                    <span className="text-sm text-white/60">{rule.reason}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        {showAdvanced && (
+          <div className="px-6 pb-6 space-y-6">
+            {/* Policy Rules */}
+            <div className="bg-white/5 rounded-lg border border-white/10 p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <Shield className="h-5 w-5 text-white/80" />
+                <h2 className="text-lg font-semibold text-white">Policy Rules</h2>
+              </div>
 
-      {/* Consent History Timeline */}
-      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <Clock className="h-5 w-5 text-white/80" />
-          <h2 className="text-lg font-semibold text-white">Consent History Timeline</h2>
-        </div>
-        <ConsentTimeline scopeRequests={scopeRequests} />
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left border-b border-white/10">
+                      <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 pr-4">Tool</th>
+                      <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 px-4">Risk Level</th>
+                      <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 px-4">Action</th>
+                      <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 pl-4">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {POLICY_RULES.map((rule) => (
+                      <tr
+                        key={rule.toolName}
+                        className={`${
+                          rule.level === 'GREEN'
+                            ? 'bg-emerald-500/5'
+                            : rule.level === 'AMBER'
+                            ? 'bg-amber-500/5'
+                            : 'bg-red-500/5'
+                        }`}
+                      >
+                        <td className="py-2.5 pr-4">
+                          <div className="flex items-center gap-2">
+                            {TOOL_ICONS[rule.toolName] || <Activity className="h-4 w-4 text-white/40" />}
+                            <span className="text-sm text-white/80 font-mono">{rule.toolName}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border font-medium ${
+                              rule.level === 'GREEN'
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                : rule.level === 'AMBER'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                : 'bg-red-500/20 text-red-300 border-red-500/30'
+                            }`}
+                          >
+                            {rule.level === 'GREEN' && <ShieldCheck className="h-3 w-3" />}
+                            {rule.level === 'AMBER' && <ShieldAlert className="h-3 w-3" />}
+                            {rule.level === 'RED' && <ShieldAlert className="h-3 w-3" />}
+                            {rule.level}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <span className="text-sm text-white/60">{rule.action}</span>
+                        </td>
+                        <td className="py-2.5 pl-4">
+                          <span className="text-sm text-white/60">{rule.reason}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Token Inspector */}
+            <TokenInspector />
+
+            {/* Scope Analytics */}
+            <ScopeAnalytics entries={auditEntries} />
+
+            {/* Delegation Chain */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <GitBranch className="h-5 w-5 text-white/80" />
+                <h2 className="text-lg font-semibold text-white">Delegation Chain</h2>
+              </div>
+              <DelegationChain />
+            </div>
+
+            {/* Consent History Timeline */}
+            <div className="bg-white/5 rounded-lg border border-white/10 p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <Clock className="h-5 w-5 text-white/80" />
+                <h2 className="text-lg font-semibold text-white">Consent History Timeline</h2>
+              </div>
+              <ConsentTimeline scopeRequests={scopeRequests} />
+            </div>
+
+            {/* Scope Expiry */}
+            <ScopeExpiry />
+
+            {/* Token Lifecycle */}
+            <TokenLifecycle connectedAccounts={connectedAccounts} auditEntries={auditEntries} />
+          </div>
+        )}
       </div>
     </div>
   );

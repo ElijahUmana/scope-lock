@@ -196,4 +196,61 @@ describe('Agents', () => {
       }
     });
   });
+
+  describe('agent delegation — canDelegateTo', () => {
+    it('reader can delegate to writer', () => {
+      const reader = getAgentProfile('reader')!;
+      expect(reader.canDelegateTo).toContain('writer');
+    });
+
+    it('reader cannot delegate to commerce', () => {
+      const reader = getAgentProfile('reader')!;
+      expect(reader.canDelegateTo).not.toContain('commerce');
+    });
+
+    it('writer can delegate to commerce', () => {
+      const writer = getAgentProfile('writer')!;
+      expect(writer.canDelegateTo).toContain('commerce');
+    });
+
+    it('writer cannot delegate to reader', () => {
+      const writer = getAgentProfile('writer')!;
+      expect(writer.canDelegateTo).not.toContain('reader');
+    });
+
+    it('commerce cannot delegate to anyone', () => {
+      const commerce = getAgentProfile('commerce')!;
+      expect(commerce.canDelegateTo).toHaveLength(0);
+    });
+
+    it('delegation targets are valid agent IDs', () => {
+      for (const agent of AGENT_PROFILES) {
+        for (const targetId of agent.canDelegateTo) {
+          const target = getAgentProfile(targetId);
+          expect(target).toBeDefined();
+        }
+      }
+    });
+
+    it('no agent delegates to itself', () => {
+      for (const agent of AGENT_PROFILES) {
+        expect(agent.canDelegateTo).not.toContain(agent.id);
+      }
+    });
+
+    it('delegation flows in one direction: reader -> writer -> commerce', () => {
+      const reader = getAgentProfile('reader')!;
+      const writer = getAgentProfile('writer')!;
+      const commerce = getAgentProfile('commerce')!;
+
+      // Forward direction exists
+      expect(reader.canDelegateTo).toContain('writer');
+      expect(writer.canDelegateTo).toContain('commerce');
+
+      // Reverse direction does not exist
+      expect(writer.canDelegateTo).not.toContain('reader');
+      expect(commerce.canDelegateTo).not.toContain('writer');
+      expect(commerce.canDelegateTo).not.toContain('reader');
+    });
+  });
 });

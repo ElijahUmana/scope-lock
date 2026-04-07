@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 
 import { auth0 } from '@/lib/auth0';
 import DashboardContent from '@/components/dashboard/dashboard-content';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 export default async function DashboardPage() {
   const session = await auth0.getSession();
@@ -22,15 +23,17 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center min-h-[400px]">
-              <Loader2 className="h-8 w-8 animate-spin text-white/60" />
-            </div>
-          }
-        >
-          <DashboardContent user={session.user} />
-        </Suspense>
+        <ErrorBoundary pageName="Dashboard">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="h-8 w-8 animate-spin text-white/60" />
+              </div>
+            }
+          >
+            <DashboardContent user={session.user} />
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </div>
   );

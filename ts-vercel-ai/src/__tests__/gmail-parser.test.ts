@@ -1,6 +1,49 @@
 import { describe, it, expect } from 'vitest';
 import { parseGmailOutput } from '@/lib/tools/gmail-parser';
 
+// These tests use the REAL format returned by LangChain's GmailSearch._call().
+//
+// GmailSearch._call() returns a string:
+//   "Result for the query <query>:\n<JSON array>"
+//
+// Each element in the JSON array has this shape:
+//   {
+//     id: "msg_id",
+//     threadId: "thread_id",
+//     snippet: "plain text preview from Gmail API",
+//     body: "decoded base64 email body (may be plain text or HTML)",
+//     subject: { name: "Subject", value: "The Subject Line" },
+//     sender:  { name: "From",    value: "sender@example.com" },
+//   }
+
+/** Build a realistic LangChain GmailSearch output string. */
+function buildLangChainOutput(query: string, messages: any[]): string {
+  return `Result for the query ${query}:\n${JSON.stringify(messages)}`;
+}
+
+/** Build a single message in the real LangChain format. */
+function buildMessage(overrides: Partial<{
+  id: string;
+  threadId: string;
+  snippet: string;
+  body: string;
+  subject: { name: string; value: string } | undefined;
+  sender: { name: string; value: string } | undefined;
+}> = {}) {
+  return {
+    id: overrides.id ?? '19abc123',
+    threadId: overrides.threadId ?? '19abc123',
+    snippet: overrides.snippet ?? 'Preview text from Gmail',
+    body: overrides.body ?? 'Full decoded email body content.',
+    subject: overrides.subject === undefined
+      ? { name: 'Subject', value: 'Test Subject' }
+      : overrides.subject,
+    sender: overrides.sender === undefined
+      ? { name: 'From', value: 'alice@example.com' }
+      : overrides.sender,
+  };
+}
+
 describe('Gmail Output Parser', () => {
   describe('empty/missing input', () => {
     it('returns "No emails found." for empty string', () => {
@@ -10,191 +53,284 @@ describe('Gmail Output Parser', () => {
     it('returns "No emails found." for whitespace-only string', () => {
       expect(parseGmailOutput('   ')).toBe('No emails found.');
     });
+
+    it('returns "No emails found." for empty array', () => {
+      const raw = buildLangChainOutput('is:unread', []);
+      expect(parseGmailOutput(raw)).toBe('No emails found.');
+    });
   });
 
-  describe('JSON array with email objects', () => {
-    it('parses correctly', () => {
-      const input = JSON.stringify([
-        {
-          headers: [
-            { name: 'Subject', value: 'Test Email' },
-            { name: 'From', value: 'alice@example.com' },
-            { name: 'Date', value: 'Mon, 1 Jan 2024 10:00:00 GMT' },
-          ],
-          snippet: 'This is a test email body.',
-        },
+  describe('real LangChain GmailSearch format', () => {
+    it('parses a single message with subject/sender header objects', () => {
+      const raw = buildLangChainOutput('from:alice', [
+        buildMessage({
+          subject: { name: 'Subject', value: 'Meeting Tomorrow' },
+          sender: { name: 'From', value: 'alice@corp.com' },
+          snippet: 'Reminder about the 10am meeting.',
+          body: 'Hi team, just a reminder about the meeting tomorrow at 10am.',
+        }),
       ]);
-      const result = parseGmailOutput(input);
-      expect(result).toContain('Test Email');
-      expect(result).toContain('alice@example.com');
-      expect(result).toContain('Mon, 1 Jan 2024 10:00:00 GMT');
-      expect(result).toContain('This is a test email body.');
-    });
-
-    it('extracts Subject, From, Date, and snippet', () => {
-      const input = JSON.stringify([
-        {
-          headers: [
-            { name: 'Subject', value: 'Meeting Tomorrow' },
-            { name: 'From', value: 'bob@corp.com' },
-            { name: 'Date', value: 'Tue, 2 Jan 2024 09:00:00 GMT' },
-          ],
-          snippet: 'Reminder about the meeting.',
-        },
-      ]);
-      const result = parseGmailOutput(input);
+      const result = parseGmailOutput(raw);
       expect(result).toContain('Meeting Tomorrow');
-      expect(result).toContain('bob@corp.com');
-      expect(result).toContain('Tue, 2 Jan 2024 09:00:00 GMT');
-      expect(result).toContain('Reminder about the meeting.');
+      expect(result).toContain('alice@corp.com');
+      // Should use body (decoded content) over snippet
+      expect(result).toContain('reminder about the meeting tomorrow');
     });
 
-    it('handles empty array', () => {
-      const result = parseGmailOutput('[]');
-      expect(result).toBe('No emails found.');
-    });
-
-    it('handles multiple emails', () => {
-      const input = JSON.stringify([
-        {
-          headers: [{ name: 'Subject', value: 'Email 1' }],
-          snippet: 'First email',
-        },
-        {
-          headers: [{ name: 'Subject', value: 'Email 2' }],
-          snippet: 'Second email',
-        },
+    it('parses multiple messages', () => {
+      const raw = buildLangChainOutput('is:unread', [
+        buildMessage({
+          subject: { name: 'Subject', value: 'First Email' },
+          sender: { name: 'From', value: 'one@test.com' },
+          body: 'Body of first email.',
+        }),
+        buildMessage({
+          subject: { name: 'Subject', value: 'Second Email' },
+          sender: { name: 'From', value: 'two@test.com' },
+          body: 'Body of second email.',
+        }),
+        buildMessage({
+          subject: { name: 'Subject', value: 'Third Email' },
+          sender: { name: 'From', value: 'three@test.com' },
+          body: 'Body of third email.',
+        }),
       ]);
-      const result = parseGmailOutput(input);
-      expect(result).toContain('Email 1');
-      expect(result).toContain('Email 2');
+      const result = parseGmailOutput(raw);
       expect(result).toContain('1.');
       expect(result).toContain('2.');
-    });
-  });
-
-  describe('missing headers', () => {
-    it('handles missing headers gracefully', () => {
-      const input = JSON.stringify([
-        {
-          snippet: 'Email without headers',
-        },
-      ]);
-      const result = parseGmailOutput(input);
-      // Should still produce output without crashing
-      expect(result).toContain('Email without headers');
+      expect(result).toContain('3.');
+      expect(result).toContain('First Email');
+      expect(result).toContain('Second Email');
+      expect(result).toContain('Third Email');
+      expect(result).toContain('one@test.com');
+      expect(result).toContain('two@test.com');
+      expect(result).toContain('three@test.com');
     });
 
-    it('uses fallback for missing subject', () => {
-      const input = JSON.stringify([
-        {
-          headers: [{ name: 'From', value: 'sender@test.com' }],
-          snippet: 'Body text',
-        },
+    it('falls back to snippet when body is empty', () => {
+      const raw = buildLangChainOutput('label:inbox', [
+        buildMessage({
+          subject: { name: 'Subject', value: 'Snippet Only' },
+          sender: { name: 'From', value: 'sender@test.com' },
+          body: '',
+          snippet: 'This is the snippet preview text.',
+        }),
       ]);
-      const result = parseGmailOutput(input);
+      const result = parseGmailOutput(raw);
+      expect(result).toContain('Snippet Only');
+      expect(result).toContain('This is the snippet preview text.');
+    });
+
+    it('handles missing subject (undefined)', () => {
+      const raw = buildLangChainOutput('is:unread', [
+        buildMessage({
+          subject: undefined as any,
+          sender: { name: 'From', value: 'nosub@test.com' },
+          body: 'Email with no subject.',
+        }),
+      ]);
+      // Force subject to actually be missing in the JSON
+      const parsed = JSON.parse(raw.match(/\[[\s\S]*\]/)![0]);
+      parsed[0].subject = undefined;
+      const fixedRaw = `Result for the query is:unread:\n${JSON.stringify(parsed)}`;
+      const result = parseGmailOutput(fixedRaw);
       expect(result).toContain('(no subject)');
-      expect(result).toContain('sender@test.com');
+      expect(result).toContain('nosub@test.com');
     });
 
-    it('uses fallback for missing sender', () => {
-      const input = JSON.stringify([
-        {
-          headers: [{ name: 'Subject', value: 'Test Subject' }],
-          snippet: 'Body text',
-        },
-      ]);
-      const result = parseGmailOutput(input);
-      expect(result).toContain('Test Subject');
+    it('handles missing sender (undefined)', () => {
+      const msg = buildMessage({
+        subject: { name: 'Subject', value: 'No Sender' },
+        body: 'Email without sender info.',
+      });
+      (msg as any).sender = undefined;
+      const raw = buildLangChainOutput('is:unread', [msg]);
+      const result = parseGmailOutput(raw);
+      expect(result).toContain('No Sender');
       expect(result).toContain('Unknown sender');
     });
+
+    it('handles both subject and sender missing', () => {
+      const msg = buildMessage({ body: 'Just a body.' });
+      (msg as any).subject = undefined;
+      (msg as any).sender = undefined;
+      const raw = buildLangChainOutput('is:unread', [msg]);
+      const result = parseGmailOutput(raw);
+      expect(result).toContain('(no subject)');
+      expect(result).toContain('Unknown sender');
+      expect(result).toContain('Just a body.');
+    });
   });
 
-  describe('malformed JSON', () => {
-    it('handles malformed JSON without crashing', () => {
+  describe('HTML body handling', () => {
+    it('strips HTML tags from body and shows clean text', () => {
+      const raw = buildLangChainOutput('is:unread', [
+        buildMessage({
+          subject: { name: 'Subject', value: 'HTML Email' },
+          sender: { name: 'From', value: 'html@test.com' },
+          body: '<div><p>Hello <b>World</b></p><p>Second paragraph.</p></div>',
+          snippet: 'Hello World Second paragraph.',
+        }),
+      ]);
+      const result = parseGmailOutput(raw);
+      expect(result).toContain('Hello');
+      expect(result).toContain('World');
+      expect(result).not.toContain('<div>');
+      expect(result).not.toContain('<p>');
+      expect(result).not.toContain('<b>');
+    });
+
+    it('strips style and script tags from HTML body', () => {
+      const raw = buildLangChainOutput('is:unread', [
+        buildMessage({
+          body: '<style>.foo{color:red}</style><script>alert("x")</script><p>Actual content</p>',
+          snippet: 'Actual content',
+        }),
+      ]);
+      const result = parseGmailOutput(raw);
+      expect(result).toContain('Actual content');
+      expect(result).not.toContain('color:red');
+      expect(result).not.toContain('alert');
+    });
+
+    it('decodes HTML entities in body', () => {
+      const raw = buildLangChainOutput('is:unread', [
+        buildMessage({
+          body: 'Price is &lt;$50&gt; &amp; that&#39;s a &quot;deal&quot;',
+        }),
+      ]);
+      const result = parseGmailOutput(raw);
+      expect(result).toContain('<$50>');
+      expect(result).toContain("& that's");
+      expect(result).toContain('"deal"');
+    });
+  });
+
+  describe('body truncation', () => {
+    it('truncates very long body text to 500 chars', () => {
+      const longBody = 'A'.repeat(600);
+      const raw = buildLangChainOutput('is:unread', [
+        buildMessage({ body: longBody }),
+      ]);
+      const result = parseGmailOutput(raw);
+      expect(result).not.toContain(longBody);
+      expect(result).toContain('...');
+    });
+  });
+
+  describe('thread format', () => {
+    // LangChain thread output has the same structure but without threadId
+    it('parses thread output (no threadId field)', () => {
+      const threadMsg = {
+        id: 'thread_abc',
+        snippet: 'Thread preview',
+        body: 'First message in thread.',
+        subject: { name: 'Subject', value: 'Thread Subject' },
+        sender: { name: 'From', value: 'thread@test.com' },
+      };
+      const raw = `Result for the query is:unread:\n${JSON.stringify([threadMsg])}`;
+      const result = parseGmailOutput(raw);
+      expect(result).toContain('Thread Subject');
+      expect(result).toContain('thread@test.com');
+      expect(result).toContain('First message in thread.');
+    });
+  });
+
+  describe('GmailGetMessage format', () => {
+    // GmailGetMessage._call() returns:
+    //   "Result for the prompt <id> \n{"subject":"...","body":"...","from":"...","to":"...","date":"...","messageId":"..."}"
+    // Note: subject, from, body are plain string values (not header objects)
+    it('parses GmailGetMessage single-message output', () => {
+      const msg = {
+        subject: 'Invoice #1234',
+        body: 'Please find attached your invoice.',
+        from: 'billing@company.com',
+        to: 'me@example.com',
+        date: 'Mon, 6 Apr 2026 10:00:00 GMT',
+        messageId: '<msg123@company.com>',
+      };
+      const raw = `Result for the prompt abc123 \n${JSON.stringify(msg)}`;
+      const result = parseGmailOutput(raw);
+      expect(result).toContain('Invoice #1234');
+      expect(result).toContain('billing@company.com');
+      expect(result).toContain('Please find attached your invoice.');
+    });
+  });
+
+  describe('error/malformed input', () => {
+    it('handles completely non-JSON text without crashing', () => {
       const result = parseGmailOutput('this is not json at all');
       expect(typeof result).toBe('string');
       expect(result.length).toBeGreaterThan(0);
     });
 
-    it('handles partial JSON without crashing', () => {
+    it('handles partial/broken JSON without crashing', () => {
       const result = parseGmailOutput('[{"subject": "broken');
       expect(typeof result).toBe('string');
+      expect(result.length).toBeGreaterThan(0);
     });
-  });
 
-  describe('snippet truncation', () => {
-    it('truncates long snippets to 500 chars', () => {
-      const longSnippet = 'x'.repeat(600);
-      const input = JSON.stringify([
-        {
-          headers: [{ name: 'Subject', value: 'Long Email' }],
-          snippet: longSnippet,
-        },
-      ]);
-      const result = parseGmailOutput(input);
-      // The snippet in the output should be truncated
-      // The full 600-char string should NOT appear
-      expect(result).not.toContain(longSnippet);
-      expect(result).toContain('...');
+    it('handles LangChain error message format', () => {
+      const result = parseGmailOutput('Error while searching Gmail: Error: No messages returned from Gmail');
+      expect(typeof result).toBe('string');
+      expect(result).toContain('Error');
     });
-  });
 
-  describe('single email object (not array)', () => {
-    it('handles a single JSON object', () => {
-      const input = JSON.stringify({
-        headers: [
-          { name: 'Subject', value: 'Solo Email' },
-          { name: 'From', value: 'single@test.com' },
-        ],
-        snippet: 'Just one email',
-      });
-      const result = parseGmailOutput(input);
-      expect(result).toContain('Solo Email');
-      expect(result).toContain('single@test.com');
-      expect(result).toContain('Just one email');
-    });
-  });
-
-  describe('{"name":"Subject","value":"..."} header format', () => {
-    it('handles the name/value header format in raw text', () => {
-      // This tests the fallback regex parser for raw LangChain output
-      const raw = 'Result: {"name":"Subject","value":"Important Update"} {"name":"From","value":"admin@company.com"} "snippet":"Please review the attached document"';
+    it('handles null-ish message objects in array gracefully', () => {
+      const raw = buildLangChainOutput('is:unread', [null, undefined as any]);
       const result = parseGmailOutput(raw);
-      expect(result).toContain('Important Update');
-      expect(result).toContain('admin@company.com');
+      expect(result).toContain('unreadable email');
     });
   });
 
-  describe('HTML stripping (fallback path)', () => {
-    it('strips HTML from output when JSON parsing fails', () => {
-      // Non-JSON input with HTML tags
+  describe('plain text fallback', () => {
+    it('strips HTML from non-JSON input and returns clean text', () => {
       const raw = '<div><p>Hello <b>World</b></p></div>';
       const result = parseGmailOutput(raw);
-      expect(result).not.toContain('<div>');
-      expect(result).not.toContain('<p>');
-      expect(result).not.toContain('<b>');
       expect(result).toContain('Hello');
       expect(result).toContain('World');
+      expect(result).not.toContain('<div>');
     });
   });
 
-  describe('LangChain prefixed output', () => {
-    it('extracts JSON array from "Result for the query: [...]" format', () => {
-      const emails = [
-        {
-          headers: [
-            { name: 'Subject', value: 'Prefixed Email' },
-            { name: 'From', value: 'lang@chain.com' },
-          ],
-          snippet: 'From LangChain',
-        },
-      ];
-      const raw = `Result for the query: ${JSON.stringify(emails)}`;
+  describe('robustness: alternative field formats', () => {
+    it('handles subject as a plain string (not header object)', () => {
+      const msg = {
+        id: 'msg1',
+        subject: 'Plain String Subject',
+        sender: { name: 'From', value: 'test@example.com' },
+        body: 'Body text.',
+        snippet: 'Snippet text.',
+      };
+      const raw = `Result for the query test:\n${JSON.stringify([msg])}`;
       const result = parseGmailOutput(raw);
-      expect(result).toContain('Prefixed Email');
-      expect(result).toContain('lang@chain.com');
-      expect(result).toContain('From LangChain');
+      expect(result).toContain('Plain String Subject');
+    });
+
+    it('handles sender as a plain string (not header object)', () => {
+      const msg = {
+        id: 'msg1',
+        subject: { name: 'Subject', value: 'Test' },
+        sender: 'plainstring@example.com',
+        body: 'Body text.',
+        snippet: 'Snippet text.',
+      };
+      const raw = `Result for the query test:\n${JSON.stringify([msg])}`;
+      const result = parseGmailOutput(raw);
+      expect(result).toContain('plainstring@example.com');
+    });
+
+    it('falls back to "from" field when "sender" is missing', () => {
+      const msg = {
+        id: 'msg1',
+        subject: { name: 'Subject', value: 'Test' },
+        from: 'fallback@example.com',
+        body: 'Body text.',
+        snippet: 'Snippet text.',
+      };
+      const raw = `Result for the query test:\n${JSON.stringify([msg])}`;
+      const result = parseGmailOutput(raw);
+      expect(result).toContain('fallback@example.com');
     });
   });
 });

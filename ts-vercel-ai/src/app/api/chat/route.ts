@@ -16,10 +16,6 @@ import { gmailDraftTool, gmailSearchTool } from '@/lib/tools/gmail';
 import { getCalendarEventsTool } from '@/lib/tools/google-calender';
 import { getTasksTool, createTasksTool } from '@/lib/tools/google-tasks';
 import { shopOnlineTool } from '@/lib/tools/shop-online';
-// import { getContextDocumentsTool } from '@/lib/tools/context-docs'; // requires FGA + postgres
-import { listRepositories } from '@/lib/tools/list-gh-repos';
-import { listGitHubEvents } from '@/lib/tools/list-gh-events';
-import { listSlackChannels } from '@/lib/tools/list-slack-channels';
 import { logToolCall } from '@/lib/audit';
 import { recordScopeRequest } from '@/lib/actions/audit';
 import { evaluatePolicy } from '@/lib/policy-engine';
@@ -29,44 +25,67 @@ import { auth0 } from '@/lib/auth0';
 import { getAgentProfile, getToolsForAgent } from '@/lib/agents';
 import { grantScope } from '@/lib/scope-ttl';
 
-const date = new Date().toISOString();
+const AGENT_SYSTEM_TEMPLATE = `You are an Email Triage Agent — an AI assistant that helps busy professionals triage their inbox, manage their schedule, and stay on top of follow-ups. You operate on the principle of LEAST PRIVILEGE — you never assume access, you earn it.
 
-const AGENT_SYSTEM_TEMPLATE = `You are Scope Lock, a security-first AI agent that demonstrates progressive authorization. You operate on the principle of LEAST PRIVILEGE — you never assume access, you earn it.
+You specialize in email triage and productivity. When asked to help with emails:
+1. First, search for recent unread or important emails
+2. Categorize them: URGENT (needs immediate response), ACTION (needs follow-up), INFORMATIONAL (FYI only), LOW PRIORITY
+3. For each email, suggest an action: Reply, Forward, Create Task, Archive, or Ignore
+4. If the user wants to act on an email, request the appropriate additional scope (e.g., gmail.compose for drafting a reply, or tasks for creating a follow-up)
 
-CORE BEHAVIOR:
-1. BEFORE accessing any service (Gmail, Calendar, GitHub, Tasks, Slack), ALWAYS tell the user:
+When presenting emails, format them as a clean triage report:
+📧 **URGENT** — [Subject] from [Sender]
+   Suggested action: Reply
+
+📋 **ACTION** — [Subject] from [Sender]
+   Suggested action: Create follow-up task
+
+ℹ️ **INFO** — [Subject] from [Sender]
+   Suggested action: Archive
+
+PROGRESSIVE AUTHORIZATION BEHAVIOR:
+1. BEFORE accessing any service (Gmail, Calendar, Tasks), ALWAYS tell the user:
    - Which service you need to access
    - What specific permission (scope) is required (e.g., "read-only Gmail access")
    - WHY you need it for their request
-   - Example: "To check your emails, I'll need read-only access to your Gmail. This uses the gmail.readonly scope through Auth0 Token Vault. I'll request this permission now."
+   - Example: "To triage your inbox, I'll need read-only access to your Gmail. This uses the gmail.readonly scope through Auth0 Token Vault. I'll request this permission now."
 
 2. AFTER accessing a service, confirm what you accessed:
    - "I retrieved your latest 10 emails using read-only Gmail access."
 
-3. For WRITE operations (drafting emails, creating tasks), explicitly warn:
-   - "This requires WRITE access to [service]. This is a higher-privilege operation. I'll request gmail.compose scope now."
+3. For WRITE operations (drafting emails, creating tasks), explicitly warn about scope escalation:
+   - "This requires WRITE access to [service]. This is a higher-privilege operation than reading. I'll request gmail.compose scope now."
 
 4. NEVER access multiple services without explaining each one.
 
 5. When displaying results:
    - Format emails cleanly with Subject, From, and Snippet fields
    - Format calendar events with time, title, and attendees
-   - Format GitHub repos with name, description, and language
    - NEVER show raw HTML, JSON, or API responses to the user
 
 6. For tool arguments, always provide valid JSON.
+
+TRIAGE WORKFLOW:
+- Start with gmail.readonly to read and categorize emails (Reader Agent, GREEN risk)
+- Escalate to gmail.compose only when the user wants to draft a reply (Writer Agent, AMBER risk — scope escalation visible)
+- Use calendar.events to check availability for meeting requests
+- Use tasks to create follow-up items from emails that need action
 
 SECURITY PRINCIPLES:
 - Every API call goes through Auth0 Token Vault — tokens are never exposed to you (the LLM)
 - Each service connection has isolated credentials with specific scope boundaries
 - Write operations can trigger step-up authentication via CIBA (mobile push notification)
 - Users can revoke any permission at any time from the Permission Dashboard
+`;
 
-The current date and time is ${date}.`;
+function buildSystemPrompt(agentAddition?: string): string {
+  const dateLine = `The current date and time is ${new Date().toISOString()}.`;
+  const base = AGENT_SYSTEM_TEMPLATE + dateLine;
+  return agentAddition
+    ? `${base}\n\nAGENT ROLE:\n${agentAddition}`
+    : base;
+}
 
-/**
- * This handler initializes and calls an tool calling agent.
- */
 // Map tool names to their scopes and connections for audit logging
 const TOOL_SCOPE_MAP: Record<string, { scopes: string[]; connection: string; credentialsContext: string }> = {
   gmailSearchTool: { scopes: ['gmail.readonly'], connection: 'google-oauth2', credentialsContext: 'thread' },
@@ -74,69 +93,121 @@ const TOOL_SCOPE_MAP: Record<string, { scopes: string[]; connection: string; cre
   getCalendarEventsTool: { scopes: ['calendar.events'], connection: 'google-oauth2', credentialsContext: 'thread' },
   getTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
   createTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
-  listRepositories: { scopes: ['repo'], connection: 'github', credentialsContext: 'tool-call' },
-  listGitHubEvents: { scopes: ['events'], connection: 'github', credentialsContext: 'tool-call' },
-  listSlackChannels: { scopes: ['channels:read'], connection: 'slack', credentialsContext: 'tool-call' },
   getUserInfoTool: { scopes: ['openid', 'profile'], connection: 'auth0', credentialsContext: 'thread' },
   shopOnlineTool: { scopes: ['product:buy'], connection: 'ciba', credentialsContext: 'tool-call' },
 };
 
+const UNKNOWN_META = { scopes: [] as string[], connection: 'unknown', credentialsContext: 'unknown' };
+
+// All available tools — static, built once at module load
+const ALL_TOOLS: Record<string, any> = {
+  ...(serpApiTool ? { serpApiTool } : {}),
+  getUserInfoTool,
+  gmailSearchTool,
+  gmailDraftTool,
+  getCalendarEventsTool,
+  getTasksTool,
+  createTasksTool,
+  shopOnlineTool,
+};
+
+const ALL_TOOL_NAMES = Object.keys(ALL_TOOLS);
+
+// Cache for filtered tool sets keyed by "agentId|presetId"
+const toolSetCache = new Map<string, Record<string, any>>();
+
+function getFilteredTools(agentId: string | null, presetId: string): Record<string, any> {
+  const cacheKey = `${agentId ?? ''}|${presetId}`;
+  const cached = toolSetCache.get(cacheKey);
+  if (cached) return cached;
+
+  const allowedToolNames = agentId ? getToolsForAgent(agentId) : null;
+  const presetToolNames = getPreset(presetId) ? getToolNamesForPreset(presetId) : null;
+
+  // Build a Set of names that pass both filters for O(1) lookups
+  let allowedSet: Set<string> | null = null;
+  if (allowedToolNames && presetToolNames !== null) {
+    // Intersection of agent tools and preset tools
+    const presetSet = new Set(presetToolNames);
+    allowedSet = new Set(allowedToolNames.filter((n) => presetSet.has(n)));
+  } else if (allowedToolNames) {
+    allowedSet = new Set(allowedToolNames);
+  } else if (presetToolNames !== null) {
+    allowedSet = new Set(presetToolNames);
+  }
+
+  let filtered: Record<string, any>;
+  if (allowedSet) {
+    filtered = Object.fromEntries(
+      ALL_TOOL_NAMES
+        .filter((name) => allowedSet!.has(name))
+        .map((name) => [name, ALL_TOOLS[name]]),
+    );
+  } else {
+    filtered = ALL_TOOLS;
+  }
+
+  toolSetCache.set(cacheKey, filtered);
+  return filtered;
+}
+
+function processAuditEntry(
+  toolName: string,
+  input: unknown,
+  success: boolean,
+  userId: string,
+) {
+  const meta = TOOL_SCOPE_MAP[toolName] ?? UNKNOWN_META;
+  const policy = evaluatePolicy(toolName, input);
+  const now = new Date().toISOString();
+  const auditEntry = logToolCall({
+    toolName,
+    scopes: meta.scopes,
+    timestamp: now,
+    success,
+    duration: 0,
+    userId,
+    connection: meta.connection,
+    credentialsContext: meta.credentialsContext,
+    riskLevel: policy.level,
+  });
+  const alerts = checkForAnomalies(userId, auditEntry);
+  if (alerts.length > 0) {
+    console.warn(`[anomaly] ${alerts.length} alert(s) for user ${userId}:`, alerts.map((a) => a.type));
+  }
+  recordScopeRequest(userId, {
+    connection: meta.connection,
+    scopes: meta.scopes,
+    requestedAt: Date.now(),
+    grantedAt: success ? Date.now() : null,
+    status: success ? 'granted' : 'denied',
+  });
+  if (success) {
+    grantScope(userId, meta.connection, meta.scopes, policy.level);
+  }
+}
+
 export async function POST(req: NextRequest) {
   const agentId = req.nextUrl.searchParams.get('agentId');
   const presetId = req.nextUrl.searchParams.get('preset') ?? 'privacy';
-  const agentProfile = agentId ? getAgentProfile(agentId) : undefined;
-  const allowedToolNames = agentId ? getToolsForAgent(agentId) : null;
-  const preset = getPreset(presetId);
-  const presetToolNames = preset ? getToolNamesForPreset(presetId) : null;
 
-  const { id, messages }: { id: string; messages: Array<UIMessage> } = await req.json();
+  // Resolve tools from cache (no per-request object allocation)
+  const tools = getFilteredTools(agentId, presetId);
+
+  // Parse body and resolve session in parallel
+  const [body, session] = await Promise.all([
+    req.json() as Promise<{ id: string; messages: Array<UIMessage> }>,
+    auth0.getSession(),
+  ]);
+
+  const { id, messages } = body;
+  const userId = session?.user?.sub ?? 'anonymous';
 
   setAIContext({ threadID: id });
 
-  // Get user for audit logging
-  const session = await auth0.getSession();
-  const userId = session?.user?.sub ?? 'anonymous';
-
-  // All available tools — keyed by name
-  const allTools: Record<string, any> = {
-    ...(serpApiTool ? { serpApiTool } : {}),
-    getUserInfoTool,
-    gmailSearchTool,
-    gmailDraftTool,
-    getCalendarEventsTool,
-    getTasksTool,
-    createTasksTool,
-    shopOnlineTool,
-    // getContextDocumentsTool, // requires FGA + postgres
-    // listRepositories,      // GitHub Token Vault connection not configured — re-enable when ready
-    // listGitHubEvents,      // GitHub Token Vault connection not configured — re-enable when ready
-    // listSlackChannels,     // Slack Token Vault connection not configured — re-enable when ready
-  };
-
-  // Scope isolation: apply both agent and preset filters.
-  // Agent filtering: only include the agent's authorized tools.
-  // Preset filtering: further restrict to only the preset's allowed tools.
-  // The intersection enforces least-privilege — the LLM literally cannot invoke
-  // tools outside both the agent's and the preset's allowed sets.
-  let tools: Record<string, any> = allTools;
-
-  if (allowedToolNames) {
-    tools = Object.fromEntries(
-      Object.entries(tools).filter(([name]) => allowedToolNames.includes(name)),
-    );
-  }
-
-  if (presetToolNames !== null) {
-    // Lockdown preset has an empty allowedTools array, which means zero tools
-    tools = Object.fromEntries(
-      Object.entries(tools).filter(([name]) => presetToolNames.includes(name)),
-    );
-  }
-
-  // Build system prompt with agent-specific addition
-  const systemPrompt = agentProfile
-    ? `${AGENT_SYSTEM_TEMPLATE}\n\nAGENT ROLE:\n${agentProfile.systemPromptAddition}`
-    : AGENT_SYSTEM_TEMPLATE;
+  // Build system prompt with fresh timestamp per request
+  const agentProfile = agentId ? getAgentProfile(agentId) : undefined;
+  const systemPrompt = buildSystemPrompt(agentProfile?.systemPromptAddition);
 
   const modelMessages = await convertToModelMessages(messages);
 
@@ -150,67 +221,12 @@ export async function POST(req: NextRequest) {
           messages: modelMessages,
           tools: tools as any,
           onFinish: (output) => {
-            // Audit log every tool call
             for (const part of output.content) {
               if (part.type === 'tool-call') {
-                const meta = TOOL_SCOPE_MAP[part.toolName] ?? { scopes: [], connection: 'unknown', credentialsContext: 'unknown' };
-                const policy = evaluatePolicy(part.toolName, part.input);
-                const now = new Date().toISOString();
-                const auditEntry = logToolCall({
-                  toolName: part.toolName,
-                  scopes: meta.scopes,
-                  timestamp: now,
-                  success: true,
-                  duration: 0,
-                  userId,
-                  connection: meta.connection,
-                  credentialsContext: meta.credentialsContext,
-                  riskLevel: policy.level,
-                });
-                // Check for anomalous patterns
-                const alerts = checkForAnomalies(userId, auditEntry);
-                if (alerts.length > 0) {
-                  console.warn(`[anomaly] ${alerts.length} alert(s) for user ${userId}:`, alerts.map((a) => a.type));
-                }
-                // Record scope request for the dashboard timeline
-                recordScopeRequest(userId, {
-                  connection: meta.connection,
-                  scopes: meta.scopes,
-                  requestedAt: Date.now(),
-                  grantedAt: Date.now(),
-                  status: 'granted',
-                });
-                // Track scope grant with TTL for auto-expiry
-                grantScope(userId, meta.connection, meta.scopes, policy.level);
+                processAuditEntry(part.toolName, part.input, true, userId);
               }
               if (part.type === 'tool-error') {
-                const meta = TOOL_SCOPE_MAP[part.toolName] ?? { scopes: [], connection: 'unknown', credentialsContext: 'unknown' };
-                const policy = evaluatePolicy(part.toolName, part.input);
-                const now = new Date().toISOString();
-                const failedAuditEntry = logToolCall({
-                  toolName: part.toolName,
-                  scopes: meta.scopes,
-                  timestamp: now,
-                  success: false,
-                  duration: 0,
-                  userId,
-                  connection: meta.connection,
-                  credentialsContext: meta.credentialsContext,
-                  riskLevel: policy.level,
-                });
-                // Check for anomalous patterns on failures too
-                const failAlerts = checkForAnomalies(userId, failedAuditEntry);
-                if (failAlerts.length > 0) {
-                  console.warn(`[anomaly] ${failAlerts.length} alert(s) for user ${userId}:`, failAlerts.map((a) => a.type));
-                }
-                // Record failed scope request
-                recordScopeRequest(userId, {
-                  connection: meta.connection,
-                  scopes: meta.scopes,
-                  requestedAt: Date.now(),
-                  grantedAt: null,
-                  status: 'denied',
-                });
+                processAuditEntry(part.toolName, part.input, false, userId);
               }
             }
 
@@ -218,14 +234,12 @@ export async function POST(req: NextRequest) {
               const lastMessage = output.content[output.content.length - 1];
               if (lastMessage?.type === 'tool-error') {
                 const { toolName, toolCallId, error, input } = lastMessage;
-                const serializableError = {
+                throw {
                   cause: error,
-                  toolCallId: toolCallId,
-                  toolName: toolName,
+                  toolCallId,
+                  toolName,
                   toolArgs: input,
                 };
-
-                throw serializableError;
               }
             }
           },

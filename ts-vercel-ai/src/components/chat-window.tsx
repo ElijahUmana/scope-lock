@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, type FormEvent, type ReactNode } from 'react';
+import { useState, useMemo, type FormEvent, type ReactNode } from 'react';
 import { type UIMessage, DefaultChatTransport, generateId, lastAssistantMessageIsCompleteWithToolCalls } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { toast } from 'sonner';
@@ -13,6 +13,99 @@ import { ChatMessageBubble } from '@/components/chat-message-bubble';
 import { ScopePresetSelector } from '@/components/chat/scope-preset-selector';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
+import { getAgentProfile } from '@/lib/agents';
+import { getPreset } from '@/lib/scope-presets';
+
+// Human-readable labels for tool names, used in the welcome message
+const TOOL_LABEL_MAP: Record<string, { label: string; icon: string }> = {
+  gmailSearchTool: { label: 'Gmail Search', icon: '📧' },
+  gmailDraftTool: { label: 'Gmail Draft', icon: '✏️' },
+  getCalendarEventsTool: { label: 'Calendar', icon: '📅' },
+  getTasksTool: { label: 'Tasks', icon: '✅' },
+  createTasksTool: { label: 'Create Task', icon: '➕' },
+  getUserInfoTool: { label: 'User Info', icon: '👤' },
+  shopOnlineTool: { label: 'Shop Online', icon: '🛒' },
+};
+
+// Suggested actions per agent, contextual to what each agent can do
+const AGENT_SUGGESTIONS: Record<string, Array<{ icon: string; label: string; prompt: string }>> = {
+  reader: [
+    { icon: '📧', label: 'Triage your inbox', prompt: "'Show me my recent emails'" },
+    { icon: '📅', label: 'Check your schedule', prompt: "'What's on my calendar today?'" },
+    { icon: '✅', label: 'Review tasks', prompt: "'List my current tasks'" },
+  ],
+  writer: [
+    { icon: '✏️', label: 'Draft an email', prompt: "'Draft a reply to the last email from my manager'" },
+    { icon: '➕', label: 'Create a task', prompt: "'Add a task to follow up on the Q2 report'" },
+    { icon: '📝', label: 'Compose a message', prompt: "'Write a professional out-of-office reply'" },
+  ],
+  commerce: [
+    { icon: '🛒', label: 'Browse products', prompt: "'Search for wireless headphones under $100'" },
+    { icon: '💳', label: 'Make a purchase', prompt: "'Buy the top-rated USB-C hub'" },
+    { icon: '🔍', label: 'Compare options', prompt: "'Compare the top 3 portable chargers'" },
+  ],
+};
+
+function buildWelcomeMessage(userName: string, agentId: string, presetId: string): UIMessage {
+  const agent = getAgentProfile(agentId);
+  const preset = getPreset(presetId);
+
+  const agentName = agent?.name ?? 'Agent';
+  const agentIcon = agent?.icon ?? '🤖';
+  const presetName = preset?.name ?? 'Privacy';
+
+  // Determine which tools are available: intersection of agent tools and preset allowed tools
+  const agentTools = agent?.tools ?? [];
+  const presetTools = preset?.allowedTools ?? [];
+  const availableTools = presetId === 'lockdown'
+    ? []
+    : agentTools.filter((t) => presetTools.includes(t));
+
+  const toolLines = availableTools
+    .map((t) => {
+      const meta = TOOL_LABEL_MAP[t];
+      return meta ? `${meta.icon} ${meta.label}` : null;
+    })
+    .filter(Boolean);
+
+  const suggestions = AGENT_SUGGESTIONS[agentId] ?? AGENT_SUGGESTIONS.reader;
+
+  // Build the status line based on preset
+  let statusLine: string;
+  if (presetId === 'lockdown') {
+    statusLine = '🔒 **Current Status:** Lockdown mode active. All external access is disabled.';
+  } else if (availableTools.length === 0) {
+    statusLine = '🔒 **Current Status:** No tools available in this preset/agent combination.';
+  } else {
+    statusLine = `🔒 **Current Status:** Zero permissions active. I'll request each scope as needed.`;
+  }
+
+  const sections = [
+    `Hello ${userName}! I'm your **${agentName}** ${agentIcon} running in **${presetName}** mode.\n`,
+    statusLine,
+  ];
+
+  if (toolLines.length > 0) {
+    sections.push(`\n**Available tools:** ${toolLines.join(' · ')}`);
+  }
+
+  sections.push('\n**I can help you with:**');
+  suggestions.forEach((s, i) => {
+    sections.push(`${i + 1}. ${s.icon} **${s.label}** — ${s.prompt}`);
+  });
+
+  if (presetId !== 'lockdown') {
+    sections.push('\nEach action will request only the specific permission needed. You\'ll see the authorization card before I access anything.');
+  } else {
+    sections.push('\nSwitch to **Privacy** or **Productivity** mode below to enable tool access.');
+  }
+
+  return {
+    id: 'welcome-message',
+    role: 'assistant',
+    parts: [{ type: 'text', text: sections.join('\n') }],
+  };
+}
 
 // Map tool names to the services they represent
 const TOOL_SERVICE_MAP: Record<string, { service: string; icon: string; level: 'read' | 'write' }> = {
@@ -52,23 +145,23 @@ function ActiveScopesBar({ messages }: { messages: UIMessage[] }) {
 
   if (activeServices.size === 0) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-black/20 border-b border-white/5 text-xs text-white/40">
-        <Shield className="w-3.5 h-3.5" />
-        <Lock className="w-3 h-3" />
-        <span>Zero Trust — No services authorized. The agent will request each permission as needed.</span>
+      <div className="flex items-center gap-2 px-3 md:px-4 py-2 bg-black/20 border-b border-white/5 text-xs text-white/40">
+        <Shield className="w-3.5 h-3.5 shrink-0" />
+        <Lock className="w-3 h-3 shrink-0" />
+        <span className="truncate">Zero Trust — No services authorized. The agent will request each permission as needed.</span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-black/20 border-b border-white/5 text-xs">
-      <div className="flex items-center gap-1.5 text-white/40">
+    <div className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 bg-black/20 border-b border-white/5 text-xs overflow-x-auto">
+      <div className="flex items-center gap-1.5 text-white/40 shrink-0">
         <Shield className="w-3.5 h-3.5 text-green-400" />
-        <span>Active:</span>
+        <span className="hidden sm:inline">Active:</span>
       </div>
       {Array.from(activeServices.entries()).map(([name, { icon, level }]) => (
         <div key={name} className={cn(
-          'flex items-center gap-1 px-2 py-0.5 rounded-full border transition-all duration-500',
+          'flex items-center gap-1 px-2 py-0.5 rounded-full border transition-all duration-500 shrink-0',
           level === 'write'
             ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
             : 'bg-green-500/15 border-green-500/30 text-green-300'
@@ -78,7 +171,7 @@ function ActiveScopesBar({ messages }: { messages: UIMessage[] }) {
           {level === 'write' ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
         </div>
       ))}
-      <span className="text-white/30 ml-auto">{activeServices.size} service{activeServices.size !== 1 ? 's' : ''} authorized</span>
+      <span className="text-white/30 ml-auto shrink-0 hidden sm:inline">{activeServices.size} service{activeServices.size !== 1 ? 's' : ''} authorized</span>
     </div>
   );
 }
@@ -90,7 +183,7 @@ function ChatMessages(props: {
   className?: string;
 }) {
   return (
-    <div className="flex flex-col max-w-[768px] mx-auto pb-12 w-full">
+    <div className="flex flex-col max-w-[768px] mx-auto pb-12 w-full px-3 md:px-0">
       {props.messages.map((m, i) => {
         return <ChatMessageBubble key={m.id} message={m} aiEmoji={props.aiEmoji} />;
       })}
@@ -133,14 +226,14 @@ function ChatInput(props: {
           value={props.value}
           placeholder={props.placeholder}
           onChange={props.onChange}
-          className="border-none outline-none bg-transparent p-4"
+          className="border-none outline-none bg-transparent p-3 md:p-4 text-sm md:text-base min-h-[44px]"
         />
 
-        <div className="flex justify-between ml-4 mr-2 mb-2">
-          <div className="flex gap-3">{props.children}</div>
+        <div className="flex justify-between ml-3 md:ml-4 mr-2 mb-2">
+          <div className="flex gap-2 md:gap-3">{props.children}</div>
 
           <Button
-            className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
+            className="rounded-full p-1.5 h-fit border dark:border-zinc-600 min-w-[44px] min-h-[44px] flex items-center justify-center"
             type="submit"
             disabled={props.loading}
           >
@@ -182,8 +275,14 @@ export function ChatWindow(props: {
   placeholder?: string;
   emoji?: string;
   agentId?: string;
+  userName?: string;
 }) {
   const [presetId, setPresetId] = useState('privacy');
+
+  const welcomeMessage = useMemo(
+    () => buildWelcomeMessage(props.userName ?? 'there', props.agentId ?? 'reader', presetId),
+    [props.userName, props.agentId, presetId],
+  );
 
   const apiUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -227,21 +326,26 @@ export function ChatWindow(props: {
         <StickToBottom>
           <StickyToBottomContent
             className="absolute inset-0"
-            contentClassName="py-8 px-2"
+            contentClassName="py-4 md:py-8 px-2"
             content={
               messages.length === 0 ? (
-                <div>{props.emptyStateComponent}</div>
+                <div>
+                  {props.emptyStateComponent}
+                  <div className="flex flex-col max-w-[768px] mx-auto pt-4 w-full px-3 md:px-0">
+                    <ChatMessageBubble message={welcomeMessage} aiEmoji={props.emoji} />
+                  </div>
+                </div>
               ) : (
                 <>
                   <ChatMessages aiEmoji={props.emoji} messages={messages} emptyStateComponent={props.emptyStateComponent} />
-                  <div className="flex flex-col max-w-[768px] mx-auto pb-12 w-full">
+                  <div className="flex flex-col max-w-[768px] mx-auto pb-12 w-full px-3 md:px-0">
                     <TokenVaultInterruptHandler interrupt={toolInterrupt} />
                   </div>
                 </>
               )
             }
             footer={
-              <div className="sticky bottom-8 px-2">
+              <div className="sticky bottom-4 md:bottom-8 px-3 md:px-2">
                 <ScrollToBottom className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4" />
                 <ScopePresetSelector activePresetId={presetId} onPresetChange={setPresetId} />
                 <ChatInput
