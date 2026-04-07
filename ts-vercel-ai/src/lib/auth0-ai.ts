@@ -8,40 +8,55 @@ export const getAccessToken = async () => getAccessTokenFromTokenVault();
 
 const auth0AI = new Auth0AI();
 
-// Connection for Google services
+// Progressive Authorization: Each service connection has isolated credentials
+// with specific scope boundaries and credential lifecycle management.
+//
+// credentialsContext controls how long credentials are cached:
+// - 'tool-call': Most restrictive — credentials valid for single invocation only
+// - 'tool': Shared across multiple calls to the same tool within a thread
+// - 'thread': Shared across all tools using the same authorizer in current thread
+//
+// Read operations use 'thread' (shared within conversation for performance)
+// Write operations use 'tool-call' (isolated per invocation for security)
+// External services use 'tool-call' (maximum isolation)
+
 export const withGmailRead = auth0AI.withTokenVault({
   connection: 'google-oauth2',
   scopes: ['openid', 'https://www.googleapis.com/auth/gmail.readonly'],
   refreshToken: getRefreshToken,
+  credentialsContext: 'thread',
 });
 export const withGmailWrite = auth0AI.withTokenVault({
   connection: 'google-oauth2',
   scopes: ['openid', 'https://www.googleapis.com/auth/gmail.compose'],
   refreshToken: getRefreshToken,
+  credentialsContext: 'tool-call', // Write ops get per-invocation isolation
 });
 export const withCalendar = auth0AI.withTokenVault({
   connection: 'google-oauth2',
   scopes: ['openid', 'https://www.googleapis.com/auth/calendar.events'],
   refreshToken: getRefreshToken,
+  credentialsContext: 'thread',
 });
 
 export const withGitHubConnection = auth0AI.withTokenVault({
   connection: 'github',
-  // scopes are not supported for GitHub yet. Set required scopes when creating the accompanying GitHub app
   scopes: [],
   refreshToken: getRefreshToken,
-  credentialsContext: 'tool-call',
+  credentialsContext: 'tool-call', // External service: maximum isolation
 });
 
 export const withSlack = auth0AI.withTokenVault({
   connection: 'sign-in-with-slack',
   scopes: ['channels:read', 'groups:read'],
   refreshToken: getRefreshToken,
+  credentialsContext: 'tool-call', // External service: maximum isolation
 });
 export const withTasks = auth0AI.withTokenVault({
   connection: 'google-oauth2',
   scopes: ['https://www.googleapis.com/auth/tasks'],
   refreshToken: getRefreshToken,
+  credentialsContext: 'thread',
 });
 
 // CIBA flow for user confirmation
