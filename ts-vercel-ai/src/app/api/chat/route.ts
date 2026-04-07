@@ -22,7 +22,10 @@ import { listGitHubEvents } from '@/lib/tools/list-gh-events';
 import { listSlackChannels } from '@/lib/tools/list-slack-channels';
 import { logToolCall } from '@/lib/audit';
 import { recordScopeRequest } from '@/lib/actions/audit';
+import { evaluatePolicy } from '@/lib/policy-engine';
+import { getPreset, getToolNamesForPreset } from '@/lib/scope-presets';
 import { auth0 } from '@/lib/auth0';
+import { getAgentProfile, getToolsForAgent } from '@/lib/agents';
 
 const date = new Date().toISOString();
 
@@ -77,6 +80,13 @@ const TOOL_SCOPE_MAP: Record<string, { scopes: string[]; connection: string; cre
 };
 
 export async function POST(req: NextRequest) {
+  const agentId = req.nextUrl.searchParams.get('agentId');
+  const presetId = req.nextUrl.searchParams.get('preset') ?? 'privacy';
+  const agentProfile = agentId ? getAgentProfile(agentId) : undefined;
+  const allowedToolNames = agentId ? getToolsForAgent(agentId) : null;
+  const preset = getPreset(presetId);
+  const presetToolNames = preset ? getToolNamesForPreset(presetId) : null;
+
   const { id, messages }: { id: string; messages: Array<UIMessage> } = await req.json();
 
   setAIContext({ threadID: id });
@@ -85,7 +95,8 @@ export async function POST(req: NextRequest) {
   const session = await auth0.getSession();
   const userId = session?.user?.sub ?? 'anonymous';
 
-  const tools = {
+  // All available tools — keyed by name
+  const allTools: Record<string, any> = {
     ...(serpApiTool ? { serpApiTool } : {}),
     getUserInfoTool,
     gmailSearchTool,
@@ -100,6 +111,31 @@ export async function POST(req: NextRequest) {
     // listSlackChannels,     // Slack Token Vault connection not configured — re-enable when ready
   };
 
+  // Scope isolation: apply both agent and preset filters.
+  // Agent filtering: only include the agent's authorized tools.
+  // Preset filtering: further restrict to only the preset's allowed tools.
+  // The intersection enforces least-privilege — the LLM literally cannot invoke
+  // tools outside both the agent's and the preset's allowed sets.
+  let tools: Record<string, any> = allTools;
+
+  if (allowedToolNames) {
+    tools = Object.fromEntries(
+      Object.entries(tools).filter(([name]) => allowedToolNames.includes(name)),
+    );
+  }
+
+  if (presetToolNames !== null) {
+    // Lockdown preset has an empty allowedTools array, which means zero tools
+    tools = Object.fromEntries(
+      Object.entries(tools).filter(([name]) => presetToolNames.includes(name)),
+    );
+  }
+
+  // Build system prompt with agent-specific addition
+  const systemPrompt = agentProfile
+    ? `${AGENT_SYSTEM_TEMPLATE}\n\nAGENT ROLE:\n${agentProfile.systemPromptAddition}`
+    : AGENT_SYSTEM_TEMPLATE;
+
   const modelMessages = await convertToModelMessages(messages);
 
   const stream = createUIMessageStream({
@@ -108,7 +144,7 @@ export async function POST(req: NextRequest) {
       async ({ writer }) => {
         const result = streamText({
           model: openai.chat('gpt-4o'),
-          system: AGENT_SYSTEM_TEMPLATE,
+          system: systemPrompt,
           messages: modelMessages,
           tools: tools as any,
           onFinish: (output) => {
@@ -116,6 +152,7 @@ export async function POST(req: NextRequest) {
             for (const part of output.content) {
               if (part.type === 'tool-call') {
                 const meta = TOOL_SCOPE_MAP[part.toolName] ?? { scopes: [], connection: 'unknown', credentialsContext: 'unknown' };
+                const policy = evaluatePolicy(part.toolName, part.input);
                 const now = new Date().toISOString();
                 logToolCall({
                   toolName: part.toolName,
@@ -126,6 +163,7 @@ export async function POST(req: NextRequest) {
                   userId,
                   connection: meta.connection,
                   credentialsContext: meta.credentialsContext,
+                  riskLevel: policy.level,
                 });
                 // Record scope request for the dashboard timeline
                 recordScopeRequest(userId, {
@@ -138,6 +176,7 @@ export async function POST(req: NextRequest) {
               }
               if (part.type === 'tool-error') {
                 const meta = TOOL_SCOPE_MAP[part.toolName] ?? { scopes: [], connection: 'unknown', credentialsContext: 'unknown' };
+                const policy = evaluatePolicy(part.toolName, part.input);
                 const now = new Date().toISOString();
                 logToolCall({
                   toolName: part.toolName,
@@ -148,6 +187,7 @@ export async function POST(req: NextRequest) {
                   userId,
                   connection: meta.connection,
                   credentialsContext: meta.credentialsContext,
+                  riskLevel: policy.level,
                 });
                 // Record failed scope request
                 recordScopeRequest(userId, {

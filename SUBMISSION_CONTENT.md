@@ -10,95 +10,136 @@
 
 Every AI agent integration today starts with the same dark pattern: "Grant access to your Gmail, Calendar, GitHub, and Slack." The user clicks "Allow All" because there is no alternative, and the agent immediately holds the keys to their entire digital life.
 
-We asked a simple question: **what if AI agents had to earn your trust, one permission at a time?**
+We asked a different question: **what if AI agents had to earn trust, one permission at a time -- and what if the entire authorization infrastructure enforced that at every layer?**
 
-The principle of least privilege is foundational to security engineering, but it has been almost entirely absent from the AI agent ecosystem. Agents request maximum permissions upfront because the tooling makes progressive authorization hard. Auth0 Token Vault changes that equation -- it gives us a credential broker that can issue scoped tokens on demand, without the agent ever touching raw OAuth secrets. Scope Lock exists to prove that progressive authorization is not just possible for AI agents, but that it produces a better user experience than the "grant everything" alternative.
+The principle of least privilege is foundational to security engineering, but it has been almost entirely absent from the AI agent ecosystem. Agents request maximum permissions upfront because the tooling makes progressive authorization hard. Auth0 Token Vault changes that equation -- it gives us a credential broker that can issue scoped tokens on demand, without the agent ever touching raw OAuth secrets.
+
+Scope Lock exists to prove that progressive authorization is not just possible for AI agents -- it is architecturally superior. We built a risk-tiered policy engine, multi-agent credential isolation, branded consent experiences, a real-time audit trail, a security operations dashboard, and a full insights page documenting the patterns, pain points, and gaps we found -- all on top of Auth0 Token Vault and the Vercel AI SDK.
 
 ## What it does
 
-Scope Lock is a security-first AI assistant that connects to five external services -- Gmail, Google Calendar, Google Tasks, GitHub, and Slack -- while enforcing three core principles:
+Scope Lock is a security-first AI assistant with three specialized sub-agents, a risk-tiered policy engine, and a full security operations dashboard. It connects to Gmail, Google Calendar, Google Tasks, GitHub, and Slack while enforcing seven layers of authorization control:
 
-**1. Progressive Authorization**
-The agent starts with zero permissions. When a user asks "show me my emails," the agent does not silently access Gmail. Instead, Token Vault detects that the `gmail.readonly` scope is missing, raises an interrupt, and the user sees an explicit authorization prompt explaining exactly what permission is being requested and why. Only after the user grants consent does the agent proceed. Each service, each scope, each action -- authorized individually.
+**1. Multi-Agent Scope Isolation (3 Specialized Agents)**
+The system deploys three agents with hard credential boundaries -- not prompt-level restrictions, but actual tool-level enforcement. The Reader Agent can access `gmailSearchTool`, `getCalendarEventsTool`, `getTasksTool`, and `getUserInfoTool`. The Writer Agent can access `gmailDraftTool` and `createTasksTool`. The Commerce Agent can access `shopOnlineTool`. Each agent is constructed with only its authorized tools passed to the LLM -- the Reader Agent physically cannot invoke `gmailDraftTool` because the tool does not exist in its execution context. This is real credential isolation enforced at the SDK layer, not prompt engineering.
 
-**2. Scope Visualization**
-The Profile page displays every connected account with full transparency: which OAuth connection is active, what scopes have been granted, when the credential was created, and when it expires. Users can inspect and revoke any connected account at any time. This is not a settings page buried three menus deep -- it is a first-class part of the experience.
+**2. Risk-Tiered Policy Engine**
+Every tool call is classified by a policy engine before execution. GREEN-tier operations (Gmail search, calendar reads, task listing) are auto-approved after Token Vault consent. AMBER-tier operations (email drafts, task creation) trigger elevated warnings. RED-tier operations (purchases) require CIBA step-up authentication via mobile push. The full policy rules table is visible in the Permission Dashboard so users can inspect the risk classification of every tool.
 
-**3. Step-Up Authentication for High-Risk Actions**
-Read-only operations like listing emails or calendar events require standard Token Vault authorization. But when the agent attempts a write operation -- drafting an email, creating a task, or making a purchase -- the system escalates. For purchases, Scope Lock triggers CIBA (Client-Initiated Backchannel Authentication), sending a push notification to the user's device with a binding message like "Do you want to buy 2 AirPods?" The agent blocks until the user explicitly approves or denies from their phone. No silent writes. No assumed consent.
+**3. Scope Presets / Privacy Modes**
+Users can switch between three security postures: Lockdown (no tools available -- the agent cannot access any external service), Privacy (read-only tools only), and Productivity (full access including writes). Each preset gates which tools are passed to the LLM, enforcing least-privilege at the UI layer before any Token Vault interaction occurs.
+
+**4. Active Scopes Bar (Real-Time Zero-Trust Display)**
+A persistent bar in the chat interface shows the current authorization state. It starts in a zero-trust state: "No services authorized. The agent will request each permission as needed." As the user grants scopes, service icons appear with color-coded read/write indicators -- green for read-only, amber for write access. This gives users continuous visibility into exactly what the agent can access at any moment.
+
+**5. Branded Authorization Cards**
+Instead of Auth0's default generic popup, Scope Lock renders custom consent cards for every authorization request. Each card shows the service name and icon, the risk level (Read Only / Write Access / Elevated), a human-readable description of exactly what data will be accessed ("Read your email subjects, senders, and content"), and a security context note explaining that credentials are managed by Token Vault and the agent never sees raw tokens. This transforms the consent experience from a security gate into an informed decision.
+
+**6. Progressive Authorization with Explanatory System Prompt**
+The agent is instructed to explain every permission request before it happens. Before accessing Gmail, the agent says: "To check your emails, I'll need read-only access to your Gmail. This uses the gmail.readonly scope through Auth0 Token Vault." After completing the access, it confirms: "I retrieved your latest 10 emails using read-only Gmail access." For write operations, it explicitly warns about elevated privileges.
+
+**7. Step-Up Authentication for High-Risk Actions (CIBA)**
+Read-only operations require standard Token Vault consent. Write operations trigger AMBER-level warnings. But when the Commerce Agent attempts a purchase, the policy engine classifies it as RED and triggers CIBA -- Client-Initiated Backchannel Authentication sends a push notification through Auth0 Guardian to the user's device with a binding message like "Do you want to buy 2 AirPods?" The agent blocks until the user explicitly approves or denies from their phone. No silent financial transactions.
 
 ## How we built it
 
-**Architecture:** Next.js 15 App Router with the Vercel AI SDK for streaming tool-calling, powered by OpenAI's GPT-4o-mini. The frontend is a chat interface where every tool invocation flows through Auth0's authorization layer before reaching any external API.
+**Architecture:** Next.js 15 App Router with the Vercel AI SDK (`streamText`, `createUIMessageStream`, `withInterruptions`) for streaming tool-calling, powered by OpenAI GPT-4o. The frontend is a multi-agent chat interface with scope preset controls and real-time authorization state visualization.
 
-**Auth0 Token Vault Integration:** Each external service is wrapped with `auth0AI.withTokenVault()`, which configures the OAuth connection, required scopes, and credential lifecycle. For example, Gmail read and Gmail compose are separate Token Vault configurations with different scope requirements:
+**Multi-Agent Credential Isolation:** Three agent profiles are defined in `agents.ts`, each with an explicit `tools` array, `riskLevel`, and `credentialsContext` setting. The chat route filters the tool map by agent ID before passing it to `streamText` -- `Object.entries(allTools).filter(([name]) => allowedToolNames.includes(name))`. The LLM physically cannot call tools outside its agent boundary because they are not provided to the model.
 
-- `withGmailRead` requests `gmail.readonly`
-- `withGmailWrite` requests `gmail.compose`  
-- `withCalendar` requests `calendar.events`
-- `withGitHubConnection` uses `credentialsContext: 'tool-call'` for per-invocation credential resolution
-- `withSlack` requests `channels:read` and `groups:read`
-- `withTasks` requests the Google Tasks scope
+**Risk-Tiered Policy Engine:** The `policy-engine.ts` module maps every tool name to a `PolicyRule` with a `RiskLevel` (GREEN/AMBER/RED), an `action` (auto-approve/warn-and-proceed/require-step-up), and a `requiredAuth` (none/consent/ciba). Every tool call passes through `evaluatePolicy()` before execution. Unknown tools default to AMBER for safety.
 
-When a tool is invoked and the user lacks the required credential, Token Vault raises a `TokenVaultInterrupt`. The frontend's `useInterruptions` hook from `@auth0/ai-vercel/react` catches this interrupt and renders an authorization prompt via a popup consent flow. After the user completes the OAuth grant in the popup, the tool call automatically resumes.
+**Auth0 Token Vault Integration:** Each external service is wrapped with `auth0AI.withTokenVault()`, configuring the OAuth connection, required scopes, and credential lifecycle:
 
-**credentialsContext Tuning:** GitHub's Token Vault configuration uses `credentialsContext: 'tool-call'`, which tells Token Vault to resolve credentials at the individual tool invocation level rather than at session initialization. This is critical for connections where scopes cannot be incrementally expanded and the credential must be fresh per call.
+- `withGmailRead` -- `gmail.readonly`, `credentialsContext: 'thread'` (performance optimization for reads)
+- `withGmailWrite` -- `gmail.compose`, `credentialsContext: 'tool-call'` (security isolation for writes)
+- `withCalendar` -- `calendar.events`, `credentialsContext: 'thread'`
+- `withGitHub` -- `credentialsContext: 'tool-call'` (GitHub does not support incremental scope grants)
+- `withSlack` -- `channels:read`, `groups:read`, `credentialsContext: 'tool-call'`
+- `withTasks` -- Google Tasks scope, `credentialsContext: 'thread'`
 
-**CIBA for Async Authorization:** The `withAsyncAuthorization` wrapper implements Client-Initiated Backchannel Authentication for the shop-online tool. When triggered, it sends a push notification through Auth0 Guardian with a human-readable binding message, then awaits user approval before proceeding. If the user denies, the `AccessDeniedInterrupt` is caught and surfaced gracefully.
+**credentialsContext as a Security Primitive:** Read operations use `credentialsContext: 'thread'` -- credentials are resolved at session initialization for performance. Write operations use `credentialsContext: 'tool-call'` -- credentials are resolved at the individual tool invocation level for security isolation. This is a deliberate architectural decision: reads are fast, writes are safe.
 
-**Interrupt-Driven Consent Flow:** The `withInterruptions` wrapper on the server side and `useInterruptions` hook on the client side form a bidirectional interrupt protocol. When Token Vault cannot fulfill a credential request, execution pauses, the interrupt propagates to the UI, the user completes consent, and execution resumes -- all without losing conversation state. The `sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls` configuration ensures the agent automatically retries the tool call after consent is granted.
+**Branded Authorization Cards:** The `TokenVaultInterruptHandler` component intercepts `TokenVaultInterrupt` objects, extracts the connection and `requiredScopes`, maps them to human-readable labels and risk levels, and renders a custom card with service branding, scope descriptions, risk classification, and a security context footer -- replacing the generic Auth0 consent popup.
 
-**Connected Accounts API:** The Profile page uses Auth0's `/me/v1/connected-accounts/accounts` endpoint to fetch and display all linked OAuth connections, including their granted scopes, creation timestamps, and expiration dates. Users can delete any connected account, immediately revoking the agent's access to that service.
+**Active Scopes Bar:** The `ActiveScopesBar` component derives the current authorization state from the chat message history by scanning for tool-call message parts. It maps tool names to services and read/write levels, then renders a persistent status bar that transitions from zero-trust lockdown to progressively filled service indicators.
+
+**Audit Trail:** Every tool call is logged with the tool name, scopes used, connection name, `credentialsContext` level, risk classification from the policy engine, timestamp, and success/failure status. The audit store is keyed by user ID and capped at 200 entries. Scope requests (granted, denied, pending) are tracked separately with a timeline visualization.
+
+**Permission Dashboard:** A full security operations page featuring:
+- Security Score (0-100) computed from active scope count, write scope presence, admin scope presence, and progressive authorization usage
+- Connected services with scope badges classified as READ/WRITE/ADMIN with color coding
+- Real-time audit trail table with tool icons, scope badges, timestamps, and success/failure indicators
+- Scope request timeline with granted/denied/pending status dots
+- Policy rules table showing every tool's risk classification, required action, and reason
+
+**Scope Topology Visualization:** An interactive diagram showing Agent-to-Tool-to-Service boundaries with risk-level colored connections, displaying how credential flows are isolated across the multi-agent architecture.
+
+**Insights Page:** A structured analysis of patterns discovered (progressive auth, credentialsContext tuning, risk-tiered policies, audit necessity), pain points (Google OAuth scope configuration, consent UX customization, CIBA channel setup, raw API response sanitization), gaps (no scope expiry, no per-agent boundaries in SDK, no built-in policy engine, no audit event standard), and six concrete recommendations for Auth0.
+
+**CIBA for Async Authorization:** The `withAsyncAuthorization` wrapper implements Client-Initiated Backchannel Authentication for the Commerce Agent's `shopOnlineTool`. When triggered, it sends a push notification through Auth0 Guardian with a binding message, then polls for user approval before proceeding.
+
+**Interrupt-Driven Consent Flow:** `withInterruptions` on the server and `useInterruptions` on the client form a bidirectional interrupt protocol. When Token Vault cannot fulfill a credential request, execution pauses, the interrupt propagates to the UI, the user completes consent via the branded authorization card, and execution resumes without losing conversation state.
 
 ## Challenges we ran into
 
+**Multi-Agent Credential Isolation Without SDK Support.** The Auth0 AI SDK does not natively support per-agent credential boundaries. `credentialsContext` operates at the tool level, not the agent level. We solved this by filtering the tool map before passing it to `streamText` -- each agent profile declares its allowed tools, and only those tools are provided to the LLM. This is real enforcement: the Writer Agent cannot call `gmailSearchTool` because the tool object does not exist in its context. But this pattern should be a first-class SDK feature.
+
+**Building a Policy Engine From Scratch.** There is no standard for risk-classifying tool calls in the agent ecosystem. We built a policy engine that maps every tool name to a risk level and required authentication method. This works, but it should be a framework feature -- every agent application needs this, and every developer is reinventing it.
+
 **Google OAuth Scope Configuration for Token Vault.** Getting Google's OAuth consent screen to work correctly with Token Vault's incremental scope requests was the most time-consuming configuration challenge. Google treats certain scope combinations as incompatible, and the consent screen behavior changes based on whether the app is in testing or production mode. We had to carefully map which scopes could be requested together and which required separate connections.
 
-**Token Vault Interrupt Handling and Conversation State.** When a tool call triggers an interrupt, the entire streaming response must be paused, the interrupt must be serialized and sent to the client, the user must complete an OAuth flow in a popup, and then the original tool call must resume with the new credential -- all without losing the conversation context. Getting the `withInterruptions` / `useInterruptions` handshake working reliably across page refreshes and popup closures required careful state management.
+**Branded Consent Card Engineering.** Auth0's default consent popup is functional but generic. Building a branded experience required reverse-engineering the `TokenVaultInterrupt` object structure to extract `connection`, `requiredScopes`, and resume metadata. We mapped every scope to human-readable labels, risk classifications, and data access descriptions. Better documentation and customization hooks from Auth0 would help.
 
-**CIBA Notification Channel Setup.** CIBA requires a configured push notification channel (Auth0 Guardian) and a registered device for the user. The setup documentation for this flow is sparse, and debugging why notifications were not being delivered required tracing through the Guardian enrollment, the CIBA authorization request, and the token polling mechanism.
+**CIBA Channel Setup.** CIBA requires a configured push notification channel (Auth0 Guardian) and a registered device. The setup documentation is sparse, and debugging notification delivery required tracing through Guardian enrollment, the CIBA authorization request, and the token polling mechanism.
 
-**Raw Email HTML Parsing.** Gmail returns email bodies as raw HTML with inline styles, base64 images, and deeply nested table layouts. The LLM cannot meaningfully process raw HTML, so we built an HTML stripping pipeline that extracts clean text while preserving semantic structure -- removing style/script tags, decoding HTML entities, and collapsing whitespace.
-
-**Credential Lifecycle and Expiration.** Token Vault credentials have expiration times, and when a token expires mid-session, the next tool call must trigger a re-authorization flow rather than failing with an opaque 401 error. We handle this by catching `TokenVaultError` and `GaxiosError` with 401 status codes and re-raising them as Token Vault interrupts, which triggers the consent popup again.
+**credentialsContext Tuning.** Understanding when to use `'thread'` vs `'tool-call'` was critical. GitHub does not support incremental scope grants, so `'tool-call'` is mandatory. But read operations benefit from `'thread'`-level caching. Making the wrong choice causes either silent credential failures or unnecessary re-authorization prompts. This took hours to understand and represents a single-line configuration change with massive behavioral impact.
 
 ## Accomplishments that we're proud of
 
-**Progressive authorization that feels natural.** The interrupt-driven consent flow does not feel like a security gate -- it feels like the agent politely asking permission. Users report that it builds more trust than the traditional "grant everything" OAuth screen.
+**Real multi-agent credential isolation.** Three agents with hard tool boundaries enforced at the SDK layer. The Reader Agent physically cannot call write tools. This is not prompt engineering -- it is architectural enforcement. We built what the SDK does not yet provide natively.
 
-**Five real API integrations, each with proper scope isolation.** Gmail read, Gmail compose, Google Calendar, Google Tasks, GitHub (repos + events), and Slack channels -- each with its own Token Vault configuration, its own scope boundaries, and its own error handling for credential failures.
+**A working risk-tiered policy engine.** Every tool call classified as GREEN (auto-approve), AMBER (warn), or RED (require step-up auth). The policy rules are visible in the dashboard. Unknown tools default to AMBER. This is the authorization pattern the industry needs but nobody has standardized.
 
-**The Connected Accounts dashboard.** Seeing exactly which scopes are granted to which service, when credentials were created, and being able to revoke any of them instantly -- this is the transparency that every AI agent should provide but almost none do.
+**Branded authorization cards that build trust.** The custom consent experience shows service name, risk level, specific data access descriptions, and security context. Users see "Read your email subjects, senders, and content" instead of a generic "Grant access to Gmail." This transforms consent from a checkbox into an informed decision.
 
-**CIBA step-up authentication for purchases.** The flow where the agent says "I need your approval to buy this" and you get a push notification on your phone -- that is the future of agent authorization for high-stakes actions.
+**Active Scopes Bar showing zero-trust progression.** The real-time display starts locked ("No services authorized"), then progressively fills with color-coded service indicators as scopes are granted. Users have continuous visibility into their agent's authorization state.
+
+**Permission Dashboard with security scoring.** A full security operations view: computed security score, connected services with READ/WRITE/ADMIN scope badges, real-time audit trail, scope request timeline, policy rules table, and scope topology diagram. This is the transparency that every AI agent should provide.
+
+**Insights page with concrete recommendations for Auth0.** We documented every pattern, pain point, and gap we found. Six actionable recommendations: scope expiry, per-agent credential boundaries, built-in policy engine, audit event schema, consent customization hooks, and embeddable dashboard widgets. This is a genuine technical contribution to the Auth0 ecosystem.
+
+**credentialsContext as a deliberate security architecture.** Read operations use `'thread'` for performance. Write operations use `'tool-call'` for isolation. This is not accidental -- it is a conscious security/performance tradeoff that should be documented as a best practice.
 
 **Zero-credential agent architecture.** The AI agent never sees, stores, or transmits a raw OAuth token. Every credential flows through Token Vault's federated exchange. If the agent's memory is compromised, there are no secrets to leak.
 
 ## What we learned
 
-**Token Vault is the missing piece for agent authorization.** Before Token Vault, building progressive authorization required managing OAuth state machines, token storage, refresh logic, and scope tracking manually. Token Vault abstracts all of that into a single `withTokenVault()` wrapper that handles credential acquisition, caching, refresh, and interrupt signaling.
+**credentialsContext is the most underrated security primitive in the SDK.** The difference between `'thread'` and `'tool-call'` determines whether credentials are cached across tool invocations or isolated per-call. Read operations should use `'thread'` for performance. Write operations must use `'tool-call'` for security. This single configuration option has more security impact than any other setting.
 
-**`credentialsContext` matters more than you expect.** The difference between resolving credentials at session level vs. tool-call level determines whether an agent can handle connections that do not support incremental scope grants (like GitHub). This is a subtle but critical configuration option.
+**Multi-agent isolation requires enforcement, not instructions.** Telling an LLM "you are the Reader Agent, do not write" is prompt engineering. Removing write tools from its execution context is enforcement. The Auth0 AI SDK does not natively support per-agent credential boundaries -- `credentialsContext` operates at the tool level. We built agent-level isolation by filtering tool maps, but this should be a first-class SDK feature.
 
-**Progressive authorization is a UX innovation, not just a security measure.** Users who see each permission requested individually with a clear explanation feel more in control than users who see a wall of checkboxes. The "earn trust incrementally" pattern produces higher completion rates than the "grant everything upfront" pattern.
+**Risk classification of tool calls should be a framework feature.** We built a policy engine that maps every tool to GREEN/AMBER/RED. This is not application-specific -- it is a universal need. Every agent application needs to distinguish between reads, writes, and destructive operations. Auth0 should ship a `PolicyEngine` class in `@auth0/ai`.
 
-**Interrupt-driven consent is the right abstraction.** Rather than pre-checking permissions before every tool call, the interrupt model lets the agent optimistically attempt actions and gracefully handle missing credentials. This maps naturally to how humans delegate tasks: "try to do this, and ask me if you need something."
+**Progressive authorization is a UX innovation, not just a security measure.** Users who see each permission requested with a clear explanation feel more in control than users who see a wall of checkboxes. The branded authorization cards with risk levels and data access descriptions produce higher trust than generic OAuth popups.
 
-**There is no standard for agent authorization audit trails.** We built scope visualization and connected account management, but the industry lacks a standard format for logging which agent accessed which API with which scope at which time. This is a gap that needs to be filled as agents become more autonomous.
+**The audit trail gap is real.** We log every tool call with scopes, connection, credentialsContext, risk level, and outcome. But there is no industry standard for this. Auth0 should define an `AuditEvent` schema for agent authorization logging.
+
+**Scope expiry is the missing security feature.** Once a scope is granted via Token Vault, it persists until manual revocation. Time-bound scopes ("grant gmail.readonly for 1 hour") would significantly improve security posture. This is the single most impactful feature Auth0 could add.
 
 ## What's next for Scope Lock
 
-**Auth0 FGA for Document-Level Access Control.** The FGA integration is already scaffolded -- we want to extend it so that when an agent accesses a specific Google Doc or GitHub repo, fine-grained authorization checks happen at the individual resource level, not just the API level.
+**Auth0 FGA for Document-Level Access Control.** The FGA integration is scaffolded -- we want fine-grained authorization at the individual resource level (specific Google Docs, specific GitHub repos), not just the API level.
 
-**MCP Server Authentication.** As Model Context Protocol becomes the standard for agent-tool communication, Scope Lock's progressive authorization pattern needs to work with MCP's authentication flow. We plan to implement a Token Vault-backed MCP auth provider.
+**MCP Server Authentication.** As Model Context Protocol becomes the standard for agent-tool communication, Scope Lock's progressive authorization pattern needs to work with MCP's authentication flow. Token Vault-backed MCP auth is the logical next step.
 
-**Per-Agent Scope Isolation for Multi-Agent Systems.** When multiple agents operate on behalf of the same user, each agent should have its own scope ceiling. Agent A might have Gmail read access while Agent B has Calendar write access -- and neither can escalate beyond its assigned boundary.
+**Time-Bound Scopes.** Implementing automatic scope expiry and re-authorization, so that a `gmail.readonly` grant expires after a configurable window and the agent must re-request consent.
 
-**NPM Package for Progressive Authorization.** The `withTokenVault` + interrupt + consent popup pattern is reusable. We want to extract it into a standalone package that any Vercel AI SDK project can drop in to get progressive authorization out of the box.
+**NPM Package for Progressive Authorization.** The multi-agent isolation + policy engine + branded consent + audit trail pattern is reusable. We want to extract it into a standalone package that any Vercel AI SDK project can use.
 
 ## Built With
 
-auth0, nextjs, vercel-ai-sdk, typescript, openai, tailwindcss, token-vault, ciba, oauth2, react, drizzle-orm, postgres
+auth0, nextjs, vercel-ai-sdk, typescript, openai, gpt-4o, tailwindcss, token-vault, ciba, oauth2, react, drizzle-orm, postgres, lucide-react
 
 ---
 
@@ -108,27 +149,23 @@ auth0, nextjs, vercel-ai-sdk, typescript, openai, tailwindcss, token-vault, ciba
 
 ## Bonus Blog Post
 
-### The Permission Problem Nobody Talks About
+### What We Actually Learned Building a Risk-Tiered Policy Engine for AI Agent Authorization
 
-I built an AI agent that can read your email, check your calendar, list your GitHub repos, browse your Slack channels, and buy things on your behalf. And the first thing I did was make sure it could do absolutely none of those things until you said so.
+I built an AI agent system with three specialized sub-agents, a policy engine that classifies every tool call by risk level, branded consent cards, and a full security operations dashboard. The most important thing I learned is that the authorization primitives we need for agentic AI do not fully exist yet -- but Auth0 Token Vault gets us closer than anything else.
 
-That sounds obvious. It is not.
+The architecture starts with a principle: not all tool calls are equal. Searching Gmail is not the same as drafting an email, which is not the same as buying something. So we built a policy engine that classifies every tool as GREEN (read-only, auto-approve after consent), AMBER (write operation, warn and proceed with elevated consent), or RED (financial/destructive, require CIBA step-up authentication via mobile push). This three-tier model maps cleanly to real user expectations about what an AI agent should be able to do without asking versus what requires explicit approval.
 
-The standard OAuth integration pattern for AI agents goes like this: request every scope you might need during the initial login, store the tokens, and hope the user did not read the permission list too carefully. I have built apps that work this way. Most of us have. It is the path of least resistance because managing incremental scope grants is genuinely hard -- you need to track which scopes the user has already authorized, handle the re-consent flow when you need a new one, manage token refresh for each scope combination, and somehow not break the user's flow while doing it.
+The multi-agent credential isolation was the hardest problem. We deploy three agents: Reader (gmail search, calendar, tasks), Writer (email drafts, task creation), and Commerce (purchases). The critical insight is that prompt-level instructions ("you are the Reader Agent, do not write") are not security -- they are suggestions. An adversarial prompt can bypass them. Real isolation means the Reader Agent's execution context does not contain write tools at all. We filter the tool map by agent ID before passing it to the Vercel AI SDK's `streamText`. The LLM cannot call `gmailDraftTool` from the Reader Agent because the function does not exist in its scope. This is enforcement, not instruction.
 
-Auth0 Token Vault eliminates that entire problem space.
+Auth0 Token Vault is what makes this architecture feasible. Each tool is wrapped with `withTokenVault()` specifying the OAuth connection, required scopes, and a `credentialsContext` setting. This last parameter is the most underrated security primitive in the entire SDK. Setting it to `'thread'` means credentials are resolved once per session -- fast, but the credential persists across tool calls. Setting it to `'tool-call'` means credentials are resolved fresh at each invocation -- slower, but each write operation gets its own isolated credential. We deliberately use `'thread'` for all read operations and `'tool-call'` for all write operations. This is not a performance optimization. It is a security architecture.
 
-The moment it clicked for me was when I wrapped my Gmail search tool with `withTokenVault({ connection: 'google-oauth2', scopes: ['gmail.readonly'] })` and realized I did not need to write a single line of token management code. No token storage. No refresh logic. No scope-checking middleware. When the user asks the agent to search their email and the credential does not exist yet, Token Vault raises an interrupt. The interrupt propagates from the server to the client. The client renders a consent popup. The user clicks "Authorize." The popup completes the OAuth flow. The popup closes. The original tool call resumes with the new credential. The agent shows the search results.
+The branded authorization cards replaced Auth0's generic consent popup. When Token Vault raises a `TokenVaultInterrupt`, we intercept it, extract the `connection` and `requiredScopes`, map them to human-readable labels and risk classifications, and render a custom card showing the service name, risk level badge, specific data access description ("Read your email subjects, senders, and content"), and a security note about Token Vault credential management. This transforms consent from "click Allow to continue" into an informed decision where the user understands what data the agent will access and at what risk level.
 
-That entire flow -- the interrupt, the consent, the resume -- happens without losing conversation state. The user does not start over. The agent does not forget what it was doing. It just... asks, waits, and continues.
+The gaps we found are real and worth documenting. First: there is no scope expiry in Token Vault. Once granted, a scope persists until manual revocation. Time-bound scopes would be a significant security improvement. Second: the Auth0 AI SDK does not support per-agent credential boundaries. `credentialsContext` is per-tool, not per-agent. We built agent isolation at the application layer, but it should be a first-class SDK feature. Third: there is no built-in policy engine. Risk classification of tool calls is a universal need, not application-specific. Fourth: there is no standard audit event schema for agent authorization. We log every tool call with scopes, connection, credentialsContext, risk level, and outcome -- but every developer is inventing this schema independently.
 
-The harder lesson was `credentialsContext`. Google's OAuth lets you incrementally add scopes to an existing grant. GitHub does not. When I first configured the GitHub connection, tool calls would fail silently because Token Vault was trying to resolve credentials at session initialization time, before any tool had been invoked. Switching to `credentialsContext: 'tool-call'` fixed it -- credentials are now resolved at the moment the tool executes, which means the interrupt fires at exactly the right time. This is a one-line configuration change that took me hours to understand, and it represents the kind of nuance that makes the difference between a demo and a working product.
+The Permission Dashboard ties it all together: a computed security score (0-100), connected services with READ/WRITE/ADMIN scope badges, a real-time audit trail, a scope request timeline, and a policy rules table showing every tool's risk classification. This is what agent authorization visibility should look like.
 
-The CIBA integration was where the security model went from "nice to have" to "genuinely novel." When the agent wants to make a purchase, it does not just ask the user in the chat window -- it sends a push notification through Auth0 Guardian with a binding message: "Do you want to buy 2 AirPods?" The user approves on their phone. The agent proceeds. This is step-up authentication applied to agentic actions, and it establishes a pattern that I think will become standard: read operations get Token Vault consent, write operations get step-up auth, and high-risk operations get out-of-band confirmation.
-
-The gap I kept running into is audit trails. I can show users which scopes are active and let them revoke connections. But there is no standard way to log "Agent X used gmail.readonly to search for 'invoice' at 14:32:07 and returned 3 results." Every agent platform will need this, and nobody has defined the schema for it yet. It is the missing layer between authorization (who can access what) and accountability (who did access what, when, and why).
-
-Building Scope Lock changed how I think about the relationship between AI agents and user trust. The "grant everything" model treats authorization as a gate to get past. Progressive authorization treats it as a conversation. The agent explains what it needs. The user decides. The agent respects the decision. That is not just better security. That is better software.
+Building Scope Lock changed how we think about the boundary between an AI agent and the services it accesses. Token Vault handles credential brokering. What is still missing is the policy layer (what should the agent be allowed to do?), the isolation layer (how do we prevent one agent from accessing another agent's credentials?), and the accountability layer (who accessed what, when, and with what authority?). We built all three. Auth0 should ship them as platform features.
 
 ---
 
@@ -138,86 +175,92 @@ Building Scope Lock changed how I think about the relationship between AI agents
 
 ## Demo Video Script (3:00)
 
-### 0:00 - 0:15 | Hook
+### 0:00 - 0:12 | Hook
 
-[Screen: Black screen, then fade into the Scope Lock login page with the Auth0 logo and "Scope Lock" title visible in the header]
+[Screen: Black screen, then fade into the Scope Lock login page]
 
-"What if AI agents had to earn your trust, one permission at a time? Right now, every AI tool asks for all your permissions upfront -- Gmail, Calendar, GitHub, everything -- before it does a single thing. Scope Lock flips that model. The agent starts with zero access and requests each permission only when it actually needs it."
+"Every AI agent asks for all your permissions upfront. Scope Lock takes the opposite approach -- three specialized agents, a risk-tiered policy engine, and zero permissions until you grant them one by one. Let me show you what that looks like."
 
-### 0:15 - 0:45 | App Overview and Progressive Authorization Concept
+### 0:12 - 0:35 | Zero-Trust Start State and Scope Presets
 
-[Screen: Click "Login" and complete Auth0 authentication. Land on the chat page showing the empty state with the Scope Lock info card]
+[Screen: Log in via Auth0. Land on the chat page showing the agent selector with three agents: Reader, Writer, Commerce. The Active Scopes Bar reads "Zero Trust -- No services authorized."]
 
-"This is Scope Lock -- a security-first AI assistant built on Auth0 Token Vault. It can connect to Gmail, Google Calendar, Google Tasks, GitHub, and Slack. But right now, it has access to none of them. Every connection, every scope, every permission has to be explicitly granted by me, in context, when the agent actually needs it."
+"Three agents, each with isolated credential boundaries. The Reader Agent can only call read tools. The Writer Agent can only call write tools. The Commerce Agent only handles purchases. This is not prompt engineering -- these are hard boundaries enforced at the SDK layer."
 
-[Screen: Highlight the info card text mentioning Auth0 Token Vault and Vercel AI SDK]
+[Screen: Show the Scope Preset Selector above the chat. Click through Lockdown (red), Privacy (green), Productivity (amber)]
 
-"Under the hood, Auth0 Token Vault acts as a credential broker. The agent never sees or stores a raw OAuth token. Every API call goes through Token Vault's federated token exchange."
+"Scope Presets let me control the agent's access posture. Lockdown disables all tools. Privacy allows read-only. Productivity unlocks everything. I'll start in Privacy mode."
 
-### 0:45 - 1:30 | Live Demo -- Gmail Read
+### 0:35 - 1:10 | Progressive Authorization -- Gmail Read
 
-[Screen: Type "Show me my recent emails" into the chat input and press send]
+[Screen: Select the Reader Agent. Type "Show me my recent emails" and send]
 
-"Let's see it in action. I'll ask the agent to show me my emails."
+"I'll ask the Reader Agent for my emails. Watch what happens."
 
-[Screen: The agent attempts to call the Gmail search tool. Token Vault detects the missing gmail.readonly scope. The TokenVaultInterruptHandler renders an "Authorization Required" card with an "Authorize" button]
+[Screen: The agent explains it needs gmail.readonly. Then the branded authorization card appears -- showing the Google service icon, "Read Only" risk badge, "Gmail Read" scope, and the description "Read your email subjects, senders, and content." The security footer reads "Credentials are managed by Auth0 Token Vault. The AI agent never sees your raw tokens."]
 
-"The agent tried to access Gmail, but it does not have permission yet. Token Vault detected the missing scope and raised an interrupt. I can see exactly what it is asking for -- read-only access to Gmail. Not compose, not delete -- just read."
+"Instead of a generic popup, you get a branded authorization card. It shows exactly which service, which scope, the risk level, and what data will be accessed. This is informed consent."
 
-[Screen: Click "Authorize." A popup opens showing Google's OAuth consent screen for gmail.readonly. Complete the consent flow. The popup closes automatically]
+[Screen: Click "Authorize Google Access." Complete the Google OAuth flow in the popup. The popup closes. The Active Scopes Bar updates -- a green "Gmail" pill appears with a lock icon indicating read-only access]
 
-"I authorize the read-only scope. The OAuth flow happens in a popup. The agent's conversation state is preserved."
+"After I authorize, watch the Active Scopes Bar -- it just went from zero trust to showing Gmail with a read-only indicator. The agent resumes and shows my emails."
 
-[Screen: The agent automatically retries the Gmail search tool call and streams back email results, rendered as clean markdown]
+[Screen: Agent streams back formatted email results]
 
-"And there it is -- the agent resumes exactly where it left off and shows me my emails. No page refresh. No lost context."
+### 1:10 - 1:40 | Agent Switching and Write Operations
 
-### 1:30 - 2:00 | Gmail Draft and Step-Up Auth
+[Screen: Switch to the Writer Agent using the agent selector. The agent card shows amber border and "MEDIUM" risk badge]
 
-[Screen: Type "Draft a reply to the first email saying I'll review it by Friday" and press send]
+"Now I switch to the Writer Agent. Notice the amber risk indicator -- this agent handles write operations."
 
-"Now let's try a write operation. I'll ask the agent to draft an email."
+[Screen: Type "Draft a reply to the latest email saying I'll review it Friday" and send]
 
-[Screen: The agent attempts to call the Gmail draft tool. A new interrupt appears, this time requesting the gmail.compose scope]
+[Screen: A new branded authorization card appears -- this time showing "Write Access" in amber, with "Gmail Write" scope and description "Create and send email drafts on your behalf"]
 
-"A separate authorization prompt -- because composing email is a different scope than reading email. The agent needs gmail.compose, which it does not have yet."
+"A separate authorization card for the compose scope. Amber badge -- write access. Different scope, different consent, different risk level."
 
-[Screen: Click "Authorize," complete the compose scope consent in the popup, popup closes, agent creates the draft]
+[Screen: Authorize. The Active Scopes Bar updates -- Gmail pill changes from green (read) to amber (write). The RiskBadge component shows "Write Operation -- Elevated Access" inline with the tool call]
 
-"After I approve the compose scope, the agent creates the draft. Two separate permissions, two separate consent flows, each with clear context about what is being requested."
+"The scopes bar shows Gmail upgraded to write access. And the risk badge right in the chat confirms this was an AMBER-tier operation."
 
-[Screen: Type "Buy me 2 AirPods" and press send. Show the CIBA flow triggering -- the agent sends an authorization request and the console shows the Guardian push notification being sent]
+### 1:40 - 2:05 | CIBA Step-Up for Purchases
 
-"For high-risk actions like purchases, Scope Lock goes further. It triggers CIBA -- Client-Initiated Backchannel Authentication. A push notification is sent to my phone asking me to confirm the purchase. The agent waits until I approve from my device."
+[Screen: Switch to the Commerce Agent. Card shows red border and "HIGH" risk badge]
 
-### 2:00 - 2:30 | Profile Page -- Scope Visualization
+"The Commerce Agent is RED-tier. Every action requires step-up authentication."
 
-[Screen: Click "Profile" in the navigation bar. The Profile page loads showing the User Info card and the Connected Accounts card side by side]
+[Screen: Type "Buy me 2 AirPods" and send. The agent explains it will trigger CIBA. The RiskBadge shows "High Risk -- Step-up Auth Required" in red. The CIBA flow triggers -- "Waiting for approval on your device..."]
 
-"The Profile page is where scope visibility lives. Every connected account is shown with its OAuth connection type, the exact scopes that have been granted, when the credential was created, and when it expires."
+"CIBA sends a push notification to my phone through Auth0 Guardian. The agent blocks until I explicitly approve. No silent purchases."
 
-[Screen: Point to the Connected Accounts card showing google-oauth2 with gmail.readonly and gmail.compose scopes listed, plus creation and expiration timestamps]
+[Screen: Show the Guardian push notification on a phone mockup with "Do you want to buy 2 AirPods?" binding message. Tap Approve]
 
-"I can see that Google has gmail.readonly and gmail.compose scopes active. I can see exactly when each was granted. And if I want to revoke access..."
+"Approved on my device. The agent confirms the purchase."
 
-[Screen: Click the trash icon next to a connected account. Confirm the deletion dialog. The account disappears from the list]
+### 2:05 - 2:40 | Permission Dashboard
 
-"One click and it is gone. The agent loses access immediately."
+[Screen: Navigate to the Permission Dashboard. The Security Score ring animates to show a score (e.g., 75). Connected services show Google with READ and WRITE scope badges, color-coded green and amber]
 
-### 2:30 - 2:50 | GitHub Integration
+"The Permission Dashboard is a full security operations view. Security score out of 100, computed from your active scopes -- fewer scopes, higher score."
 
-[Screen: Navigate back to Chat. Type "List my GitHub repositories" and press send]
+[Screen: Scroll to the Audit Trail section showing tool calls with icons, scope badges, timestamps, and OK/Fail status. Then scroll to the Scope Request Timeline showing granted/denied dots on a vertical timeline]
 
-"The same pattern works across every service. GitHub uses a different Token Vault configuration with per-tool-call credential resolution."
+"Every tool call logged in the audit trail -- tool name, scopes used, risk classification, timestamp. The scope request timeline tracks every authorization flow."
 
-[Screen: The GitHub authorization interrupt appears. Click "Authorize," complete the GitHub OAuth flow in the popup, agent returns repository listing with names, descriptions, stars, and languages]
+[Screen: Scroll to the Policy Rules table showing GREEN/AMBER/RED classifications for each tool]
 
-"Authorize the GitHub connection, and the agent lists my repositories -- names, descriptions, languages, star counts. Each service earns its access independently."
+"The policy rules table. Every tool, its risk tier, and what action is required. Full transparency."
 
-### 2:50 - 3:00 | Closing
+### 2:40 - 2:55 | Insights Page
 
-[Screen: Split view showing the chat interface on the left with multiple successful tool calls, and the Profile page on the right showing all connected accounts with their scopes]
+[Screen: Navigate to the Insights page. Show the four sections: Patterns Discovered, Pain Points, Gaps Identified, Recommendations for Auth0]
 
-"Scope Lock. Five API integrations. Zero upfront permissions. Every scope requested in context, every action audited, every credential brokered through Auth0 Token Vault. Because AI agents should earn access -- not assume it."
+"The Insights page documents everything we learned. Patterns like credentialsContext tuning. Pain points like Google OAuth configuration. Gaps -- no scope expiry, no per-agent boundaries in the SDK, no built-in policy engine. And six concrete recommendations for Auth0."
 
-[Screen: Fade to the Scope Lock logo with "Built with Auth0 Token Vault" underneath and the GitHub URL]
+### 2:55 - 3:00 | Closing
+
+[Screen: Split view -- chat with Active Scopes Bar filled on left, Dashboard with security score and topology on right]
+
+"Scope Lock. Three isolated agents. A risk-tiered policy engine. Branded consent. Full audit trail. Zero upfront permissions. Because AI agents should earn access, not assume it."
+
+[Screen: Fade to Scope Lock logo with "Built with Auth0 Token Vault" and the GitHub URL]

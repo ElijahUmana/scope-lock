@@ -1,5 +1,6 @@
 import { LogIn, UserPlus } from 'lucide-react';
 import { ChatWindow } from '@/components/chat-window';
+import { AgentSelector } from '@/components/agent-selector';
 import { GuideInfoBox } from '@/components/guide/GuideInfoBox';
 import { Button } from '@/components/ui/button';
 import { auth0 } from '@/lib/auth0';
@@ -68,12 +69,5 @@ export default async function Home() {
     </GuideInfoBox>
   );
 
-  return (
-    <ChatWindow
-      endpoint="api/chat"
-      emoji="🤖"
-      placeholder={`Hello ${session?.user?.name}, I'm Scope Lock. I can securely access your connected services -- what would you like to do?`}
-      emptyStateComponent={InfoCard}
-    />
-  );
+  return <AgentSelector userName={session?.user?.name ?? 'there'} infoCard={InfoCard} />;
 }

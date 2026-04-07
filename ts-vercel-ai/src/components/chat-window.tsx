@@ -10,6 +10,7 @@ import { useInterruptions } from '@auth0/ai-vercel/react';
 
 import { TokenVaultInterruptHandler } from '@/components/TokenVaultInterruptHandler';
 import { ChatMessageBubble } from '@/components/chat-message-bubble';
+import { ScopePresetSelector } from '@/components/chat/scope-preset-selector';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
 
@@ -180,11 +181,24 @@ export function ChatWindow(props: {
   emptyStateComponent: ReactNode;
   placeholder?: string;
   emoji?: string;
+  agentId?: string;
 }) {
+  const [presetId, setPresetId] = useState('privacy');
+
+  const apiUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (props.agentId) params.set('agentId', props.agentId);
+    params.set('preset', presetId);
+    const qs = params.toString();
+    return qs ? `${props.endpoint}?${qs}` : props.endpoint;
+  }, [props.endpoint, props.agentId, presetId]);
+
   const { messages, sendMessage, status, toolInterrupt } = useInterruptions((handler) =>
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useChat({
-      transport: new DefaultChatTransport({ api: props.endpoint }),
+      transport: new DefaultChatTransport({
+        api: apiUrl,
+      }),
       generateId,
       onError: handler((e: Error) => {
         console.error('Error: ', e);
@@ -229,6 +243,7 @@ export function ChatWindow(props: {
             footer={
               <div className="sticky bottom-8 px-2">
                 <ScrollToBottom className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4" />
+                <ScopePresetSelector activePresetId={presetId} onPresetChange={setPresetId} />
                 <ChatInput
                   value={input}
                   onChange={(e) => setInput(e.target.value)}

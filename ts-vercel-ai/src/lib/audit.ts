@@ -12,6 +12,7 @@ export interface AuditEntry {
   userId: string;
   connection: string;
   credentialsContext: string;
+  riskLevel: string;
 }
 
 // Global in-memory audit store keyed by userId

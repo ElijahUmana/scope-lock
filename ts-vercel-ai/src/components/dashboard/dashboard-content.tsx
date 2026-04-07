@@ -24,8 +24,11 @@ import {
   ShoppingCart,
   User,
   Globe,
+  Network,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
+
+import ScopeTopology from './scope-topology';
 
 import {
   ConnectedAccount,
@@ -38,6 +41,7 @@ import {
   fetchAuditEntries,
   fetchScopeRequests,
 } from '@/lib/actions/audit';
+import { getPolicyRules, type PolicyRule } from '@/lib/policy-engine';
 
 interface KeyValueMap {
   [key: string]: any;
@@ -677,6 +681,17 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
         </div>
       </div>
 
+      {/* Scope Topology */}
+      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
+        <div className="flex items-center gap-2 mb-6">
+          <Network className="h-5 w-5 text-white/80" />
+          <h2 className="text-lg font-semibold text-white">
+            Scope Topology &mdash; Agent &harr; Service Boundaries
+          </h2>
+        </div>
+        <ScopeTopology />
+      </div>
+
       {/* Bottom row: Audit Trail + Scope Request History */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Audit Trail */}
@@ -875,6 +890,70 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Policy Rules */}
+      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
+        <div className="flex items-center gap-2 mb-6">
+          <Shield className="h-5 w-5 text-white/80" />
+          <h2 className="text-lg font-semibold text-white">Policy Rules</h2>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-left border-b border-white/10">
+                <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 pr-4">Tool</th>
+                <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 px-4">Risk Level</th>
+                <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 px-4">Action</th>
+                <th className="text-xs font-medium text-white/50 uppercase tracking-wider pb-3 pl-4">Reason</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {getPolicyRules().map((rule) => (
+                <tr
+                  key={rule.toolName}
+                  className={`${
+                    rule.level === 'GREEN'
+                      ? 'bg-emerald-500/5'
+                      : rule.level === 'AMBER'
+                      ? 'bg-amber-500/5'
+                      : 'bg-red-500/5'
+                  }`}
+                >
+                  <td className="py-2.5 pr-4">
+                    <div className="flex items-center gap-2">
+                      {TOOL_ICONS[rule.toolName] || <Activity className="h-4 w-4 text-white/40" />}
+                      <span className="text-sm text-white/80 font-mono">{rule.toolName}</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-4">
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border font-medium ${
+                        rule.level === 'GREEN'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : rule.level === 'AMBER'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                          : 'bg-red-500/20 text-red-300 border-red-500/30'
+                      }`}
+                    >
+                      {rule.level === 'GREEN' && <ShieldCheck className="h-3 w-3" />}
+                      {rule.level === 'AMBER' && <ShieldAlert className="h-3 w-3" />}
+                      {rule.level === 'RED' && <ShieldAlert className="h-3 w-3" />}
+                      {rule.level}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-4">
+                    <span className="text-sm text-white/60">{rule.action}</span>
+                  </td>
+                  <td className="py-2.5 pl-4">
+                    <span className="text-sm text-white/60">{rule.reason}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
