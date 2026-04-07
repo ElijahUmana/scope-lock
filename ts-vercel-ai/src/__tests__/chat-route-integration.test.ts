@@ -17,8 +17,9 @@ const TOOL_SCOPE_MAP: Record<string, { scopes: string[]; connection: string; cre
   getCalendarEventsTool: { scopes: ['calendar.events'], connection: 'google-oauth2', credentialsContext: 'thread' },
   getTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
   createTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
+  deleteTaskTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'tool-call' },
+  completeTaskTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'tool-call' },
   getUserInfoTool: { scopes: ['openid', 'profile'], connection: 'auth0', credentialsContext: 'thread' },
-  shopOnlineTool: { scopes: ['product:buy'], connection: 'ciba', credentialsContext: 'tool-call' },
 };
 
 const UNKNOWN_META = { scopes: [] as string[], connection: 'unknown', credentialsContext: 'unknown' };
@@ -31,6 +32,8 @@ const ALL_TOOL_NAMES = [
   'getCalendarEventsTool',
   'getTasksTool',
   'createTasksTool',
+  'deleteTaskTool',
+  'completeTaskTool',
 ];
 
 // ---- Tool filtering logic mirrored from the chat route ----
@@ -133,9 +136,9 @@ describe('Chat Route Integration', () => {
         ]);
       });
 
-      it('productivity preset returns all 6 tools', () => {
+      it('productivity preset returns all 8 tools', () => {
         const tools = getFilteredToolNames(null, 'productivity');
-        expect(tools).toHaveLength(6);
+        expect(tools).toHaveLength(8);
       });
 
       it('lockdown preset returns 0 tools', () => {
@@ -178,11 +181,11 @@ describe('Chat Route Integration', () => {
         expect(tools).toHaveLength(0);
       });
 
-      it('productivity preset returns 2 write tools', () => {
+      it('productivity preset returns 4 write tools', () => {
         const tools = getFilteredToolNames('writer', 'productivity');
         expect(tools).toContain('gmailDraftTool');
         expect(tools).toContain('createTasksTool');
-        expect(tools).toHaveLength(2);
+        expect(tools).toHaveLength(4);
       });
 
       it('lockdown preset returns 0 tools', () => {
@@ -342,11 +345,11 @@ describe('Chat Route Integration', () => {
       expect(result.remaining).toBeGreaterThan(29 * 60 * 1000);
     });
 
-    it('RED tool grants 5-minute TTL', () => {
-      processAuditEntry('shopOnlineTool', {}, true, TEST_USER);
-      const result = checkScopeExpiry(TEST_USER, 'ciba');
-      expect(result.remaining).toBeLessThanOrEqual(5 * 60 * 1000);
-      expect(result.remaining).toBeGreaterThan(4 * 60 * 1000);
+    it('AMBER tool grants 10-minute TTL', () => {
+      processAuditEntry('gmailDraftTool', {}, true, TEST_USER);
+      const result = checkScopeExpiry(TEST_USER, 'google-oauth2');
+      expect(result.remaining).toBeLessThanOrEqual(10 * 60 * 1000);
+      expect(result.remaining).toBeGreaterThan(9 * 60 * 1000);
     });
   });
 
@@ -403,14 +406,11 @@ describe('Chat Route Integration', () => {
     it('each agent has appropriate rate limits', () => {
       const readerLimit = checkRateLimit(`${TEST_USER}-rl-reader`, 'reader');
       const writerLimit = checkRateLimit(`${TEST_USER}-rl-writer`, 'writer');
-      const commerceLimit = checkRateLimit(`${TEST_USER}-rl-commerce`, 'commerce');
 
       // Reader is most permissive
       expect(readerLimit.limit).toBe(50);
-      // Writer is moderate
+      // Writer is more restrictive
       expect(writerLimit.limit).toBe(15);
-      // Commerce is most restrictive
-      expect(commerceLimit.limit).toBe(3);
     });
   });
 
@@ -429,11 +429,12 @@ describe('Chat Route Integration', () => {
     });
 
     it('risk escalation maps agent IDs to risk levels', () => {
-      const d1 = createDelegation('reader', 'commerce', ['shopOnlineTool'], 'buy', TEST_USER);
-      expect(d1.riskEscalation).toEqual({ from: 'low', to: 'high' });
+      const d1 = createDelegation('reader', 'writer', ['gmailDraftTool'], 'draft reply', TEST_USER);
+      expect(d1.riskEscalation).toEqual({ from: 'low', to: 'medium' });
 
-      const d2 = createDelegation('writer', 'commerce', ['shopOnlineTool'], 'buy', TEST_USER);
-      expect(d2.riskEscalation).toEqual({ from: 'medium', to: 'high' });
+      // Unknown agents default to 'unknown' risk
+      const d2 = createDelegation('writer', 'nonexistent', ['someTool'], 'test', TEST_USER);
+      expect(d2.riskEscalation).toEqual({ from: 'medium', to: 'unknown' });
     });
   });
 
@@ -606,16 +607,16 @@ describe('Chat Route Integration', () => {
       expect(scopeCheck.valid).toBe(false);
     });
 
-    it('completes without errors for a RED tool call', () => {
-      const entry = processAuditEntry('shopOnlineTool', { product: 'test', qty: 1 }, true, TEST_USER);
+    it('completes without errors for an AMBER tool call', () => {
+      const entry = processAuditEntry('gmailDraftTool', { to: 'test@example.com' }, true, TEST_USER);
 
-      expect(entry.riskLevel).toBe('RED');
-      expect(entry.connection).toBe('ciba');
+      expect(entry.riskLevel).toBe('AMBER');
+      expect(entry.connection).toBe('google-oauth2');
 
-      // Scope grant exists with short TTL
-      const scopeCheck = checkScopeExpiry(TEST_USER, 'ciba');
+      // Scope grant exists with 10-minute TTL
+      const scopeCheck = checkScopeExpiry(TEST_USER, 'google-oauth2');
       expect(scopeCheck.valid).toBe(true);
-      expect(scopeCheck.remaining).toBeLessThanOrEqual(5 * 60 * 1000);
+      expect(scopeCheck.remaining).toBeLessThanOrEqual(10 * 60 * 1000);
     });
 
     it('handles multiple sequential tool calls correctly', () => {

@@ -70,7 +70,6 @@ export function createDelegation(
   const RISK_MAP: Record<string, string> = {
     reader: 'low',
     writer: 'medium',
-    commerce: 'high',
   };
 
   const delegation: DelegationRequest = {

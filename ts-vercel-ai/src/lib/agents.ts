@@ -23,14 +23,14 @@ export const AGENT_PROFILES: AgentProfile[] = [
     systemPromptAddition:
       'You are the READER agent. You have READ-ONLY access. You can search Gmail, view calendar events, list tasks, and retrieve user profile info. You CANNOT create drafts or create tasks. If the user asks you to write or modify anything, explain that they need to switch to the Writer agent.',
     canDelegateTo: ['writer'],
-    cannotAccess: ['gmailDraftTool', 'createTasksTool'],
+    cannotAccess: ['gmailDraftTool', 'createTasksTool', 'deleteTaskTool', 'completeTaskTool'],
   },
   {
     id: 'writer',
     name: 'Writer Agent',
     description: 'I can create drafts and tasks on your behalf. Each write operation uses isolated credentials.',
     icon: '✍️',
-    tools: ['gmailDraftTool', 'createTasksTool'],
+    tools: ['gmailDraftTool', 'createTasksTool', 'deleteTaskTool', 'completeTaskTool'],
     riskLevel: 'medium',
     credentialsContext: 'tool-call',
     systemPromptAddition:

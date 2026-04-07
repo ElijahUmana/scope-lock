@@ -167,6 +167,8 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   getCalendarEventsTool: <Calendar className="h-4 w-4 text-blue-400" />,
   getTasksTool: <ListTodo className="h-4 w-4 text-green-400" />,
   createTasksTool: <ListTodo className="h-4 w-4 text-green-400" />,
+  deleteTaskTool: <ListTodo className="h-4 w-4 text-green-400" />,
+  completeTaskTool: <ListTodo className="h-4 w-4 text-green-400" />,
   getUserInfoTool: <User className="h-4 w-4 text-blue-400" />,
   serpApiTool: <Search className="h-4 w-4 text-orange-400" />,
 };

@@ -108,7 +108,5 @@ export const SCOPE_METADATA: Record<string, { label: string; level: 'read' | 'wr
   'https://www.googleapis.com/auth/gmail.compose': { label: 'Gmail Write', level: 'write', service: 'Google' },
   'https://www.googleapis.com/auth/calendar.events': { label: 'Calendar Events', level: 'read', service: 'Google' },
   'https://www.googleapis.com/auth/tasks': { label: 'Tasks', level: 'read', service: 'Google' },
-  'channels:read': { label: 'Channels Read', level: 'read', service: 'Slack' },
-  'groups:read': { label: 'Groups Read', level: 'read', service: 'Slack' },
   'openid': { label: 'OpenID', level: 'read', service: 'Auth0' },
 };

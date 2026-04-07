@@ -62,7 +62,7 @@ describe('Scope Presets + Agent Integration', () => {
       // Productivity has all tools
       expect(effective).toContain('gmailDraftTool');
       expect(effective).toContain('createTasksTool');
-      expect(effective).toHaveLength(2);
+      expect(effective).toHaveLength(4);
     });
   });
 

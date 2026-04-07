@@ -39,19 +39,22 @@ export const withCalendar = auth0AI.withTokenVault({
   credentialsContext: 'thread',
 });
 
+// Disabled integrations — retained because disabled tool files (list-gh-repos.ts,
+// list-gh-events.ts, list-slack-channels.ts) still import these. Not wired into the chat route.
 export const withGitHubConnection = auth0AI.withTokenVault({
   connection: 'github',
   scopes: [],
   refreshToken: getRefreshToken,
-  credentialsContext: 'tool-call', // External service: maximum isolation
+  credentialsContext: 'tool-call',
 });
 
 export const withSlack = auth0AI.withTokenVault({
   connection: 'sign-in-with-slack',
   scopes: ['channels:read', 'groups:read'],
   refreshToken: getRefreshToken,
-  credentialsContext: 'tool-call', // External service: maximum isolation
+  credentialsContext: 'tool-call',
 });
+
 export const withTasks = auth0AI.withTokenVault({
   connection: 'google-oauth2',
   scopes: ['https://www.googleapis.com/auth/tasks'],

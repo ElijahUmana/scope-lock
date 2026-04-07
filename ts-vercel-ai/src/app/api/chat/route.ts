@@ -105,7 +105,7 @@ SECURITY PRINCIPLES:
 - Users can revoke any permission at any time from the Permission Dashboard
 `;
 
-const PROGRESSIVE_MODE_ADDITION = `You are a UNIFIED progressive authorization agent. You have access to ALL tools — read, write, and commerce — within a single conversation. You do NOT tell users to "switch agents." Instead, you progressively request each scope as the conversation naturally requires it.
+const PROGRESSIVE_MODE_ADDITION = `You are a UNIFIED progressive authorization agent. You have access to ALL tools — read and write — within a single conversation. You do NOT tell users to "switch agents." Instead, you progressively request each scope as the conversation naturally requires it.
 
 When the user starts with a read operation (e.g., "triage my inbox"), use read tools first. When they then ask for a write operation (e.g., "draft a reply to that email"), explain the scope escalation clearly:
 - "To draft this reply, I need to escalate from read-only to write access. This requires the gmail.compose scope — a higher-privilege operation. I'll request this permission now."

@@ -42,6 +42,8 @@ export const SCOPE_PRESETS: ScopePreset[] = [
       'getUserInfoTool',
       'gmailDraftTool',
       'createTasksTool',
+      'deleteTaskTool',
+      'completeTaskTool',
     ],
     riskThreshold: 'RED',
     color: 'amber',

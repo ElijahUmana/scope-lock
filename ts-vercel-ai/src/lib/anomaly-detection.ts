@@ -129,7 +129,7 @@ function detectRapidEscalation(
     return {
       type: 'RAPID_ESCALATION',
       severity: 'high',
-      message: `Rapid privilege escalation detected \u2014 went from read-only to financial operations in under ${elapsedSec} seconds.`,
+      message: `Rapid privilege escalation detected \u2014 went from read-only to write operations in under ${elapsedSec} seconds.`,
       timestamp: now,
       details: {
         fromTool: recentGreen.toolName,

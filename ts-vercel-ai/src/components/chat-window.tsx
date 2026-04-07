@@ -25,6 +25,8 @@ const TOOL_LABEL_MAP: Record<string, { label: string; icon: string }> = {
   getCalendarEventsTool: { label: 'Calendar', icon: '📅' },
   getTasksTool: { label: 'Tasks', icon: '✅' },
   createTasksTool: { label: 'Create Task', icon: '➕' },
+  deleteTaskTool: { label: 'Delete Task', icon: '🗑️' },
+  completeTaskTool: { label: 'Complete Task', icon: '☑️' },
   getUserInfoTool: { label: 'User Info', icon: '👤' },
 };
 
@@ -144,6 +146,8 @@ const TOOL_SERVICE_MAP: Record<string, { service: string; icon: string; level: '
   getCalendarEventsTool: { service: 'Calendar', icon: '📅', level: 'read' },
   getTasksTool: { service: 'Tasks', icon: '✅', level: 'read' },
   createTasksTool: { service: 'Tasks', icon: '➕', level: 'write' },
+  deleteTaskTool: { service: 'Tasks', icon: '🗑️', level: 'write' },
+  completeTaskTool: { service: 'Tasks', icon: '☑️', level: 'write' },
 };
 
 function ActiveScopesBar({ messages }: { messages: UIMessage[] }) {

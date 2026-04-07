@@ -13,7 +13,7 @@ interface SecurityAssertion {
 }
 
 // Write tool names that should never appear in read-only contexts
-const WRITE_TOOL_NAMES = ['gmailDraftTool', 'createTasksTool', 'shopOnlineTool'];
+const WRITE_TOOL_NAMES = ['gmailDraftTool', 'createTasksTool', 'deleteTaskTool', 'completeTaskTool'];
 
 function runAssertions(): SecurityAssertion[] {
   const assertions: SecurityAssertion[] = [];
@@ -31,26 +31,25 @@ function runAssertions(): SecurityAssertion[] {
       : `Reader tools: [${readerTools.join(', ')}] — no write tools present`,
   });
 
-  // 2. Writer Agent cannot access commerce tools
+  // 2. Writer Agent cannot access read tools
   const writerTools = getToolsForAgent('writer');
   assertions.push({
-    name: 'Writer Agent cannot access commerce tools',
+    name: 'Writer Agent cannot access read tools',
     category: 'isolation',
-    passed: !writerTools.includes('shopOnlineTool'),
-    details: writerTools.includes('shopOnlineTool')
-      ? `FAIL: shopOnlineTool found in writer tools: [${writerTools.join(', ')}]`
-      : `Writer tools: [${writerTools.join(', ')}] — no commerce tools present`,
+    passed: !writerTools.includes('gmailSearchTool'),
+    details: writerTools.includes('gmailSearchTool')
+      ? `FAIL: gmailSearchTool found in writer tools: [${writerTools.join(', ')}]`
+      : `Writer tools: [${writerTools.join(', ')}] — no read tools present`,
   });
 
-  // 3. Commerce Agent cannot access read tools
-  const commerceTools = getToolsForAgent('commerce');
+  // 3. Reader Agent cannot access write tools (createTasksTool)
   assertions.push({
-    name: 'Commerce Agent cannot access read tools',
+    name: 'Reader Agent cannot access create tools',
     category: 'isolation',
-    passed: !commerceTools.includes('gmailSearchTool'),
-    details: commerceTools.includes('gmailSearchTool')
-      ? `FAIL: gmailSearchTool found in commerce tools: [${commerceTools.join(', ')}]`
-      : `Commerce tools: [${commerceTools.join(', ')}] — no read tools present`,
+    passed: !readerTools.includes('createTasksTool'),
+    details: readerTools.includes('createTasksTool')
+      ? `FAIL: createTasksTool found in reader tools: [${readerTools.join(', ')}]`
+      : `Reader tools: [${readerTools.join(', ')}] — no create tools present`,
   });
 
   // 4. Lockdown preset has zero tools
@@ -100,15 +99,15 @@ function runAssertions(): SecurityAssertion[] {
       : `FAIL: gmailDraftTool classified as ${gmailDraftPolicy.level}, expected AMBER`,
   });
 
-  // 8. Commerce tools are classified RED
-  const shopPolicy = evaluatePolicy('shopOnlineTool', {});
+  // 8. Task creation tools are classified AMBER
+  const createTaskPolicy = evaluatePolicy('createTasksTool', {});
   assertions.push({
-    name: 'Commerce tools are classified RED',
+    name: 'Task creation tools are classified AMBER',
     category: 'policy',
-    passed: shopPolicy.level === 'RED',
-    details: shopPolicy.level === 'RED'
-      ? `shopOnlineTool policy: level=${shopPolicy.level}, action=${shopPolicy.action}`
-      : `FAIL: shopOnlineTool classified as ${shopPolicy.level}, expected RED`,
+    passed: createTaskPolicy.level === 'AMBER',
+    details: createTaskPolicy.level === 'AMBER'
+      ? `createTasksTool policy: level=${createTaskPolicy.level}, action=${createTaskPolicy.action}`
+      : `FAIL: createTasksTool classified as ${createTaskPolicy.level}, expected AMBER`,
   });
 
   // 9. Unknown tools default to AMBER

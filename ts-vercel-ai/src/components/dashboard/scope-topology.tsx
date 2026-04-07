@@ -117,6 +117,24 @@ const TOOLS: TopologyTool[] = [
     serviceId: 'google-oauth2',
     riskColor: 'bg-amber-500/40',
   },
+  {
+    id: 'deleteTask',
+    label: 'Delete Task',
+    icon: <ListTodo className="h-3.5 w-3.5 text-green-400" />,
+    scope: 'tasks',
+    agentId: 'writer',
+    serviceId: 'google-oauth2',
+    riskColor: 'bg-amber-500/40',
+  },
+  {
+    id: 'completeTask',
+    label: 'Complete Task',
+    icon: <ListTodo className="h-3.5 w-3.5 text-green-400" />,
+    scope: 'tasks',
+    agentId: 'writer',
+    serviceId: 'google-oauth2',
+    riskColor: 'bg-amber-500/40',
+  },
 ];
 
 const SERVICES: TopologyService[] = [

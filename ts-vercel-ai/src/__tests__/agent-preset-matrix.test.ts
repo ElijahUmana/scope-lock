@@ -21,11 +21,11 @@ const PRESET_IDS = SCOPE_PRESETS.map((p) => p.id);
  * Expected tool counts for the full 2x3 matrix.
  *
  * Reader tools (4): gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool
- * Writer tools (2): gmailDraftTool, createTasksTool
+ * Writer tools (4): gmailDraftTool, createTasksTool, deleteTaskTool, completeTaskTool
  *
  * Lockdown allows: [] (0)
  * Privacy allows: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool (4)
- * Productivity allows: all 6
+ * Productivity allows: all 8
  */
 const EXPECTED_MATRIX: Record<string, Record<string, { count: number; tools: string[] }>> = {
   reader: {
@@ -42,7 +42,7 @@ const EXPECTED_MATRIX: Record<string, Record<string, { count: number; tools: str
   writer: {
     lockdown: { count: 0, tools: [] },
     privacy: { count: 0, tools: [] },
-    productivity: { count: 2, tools: ['gmailDraftTool', 'createTasksTool'] },
+    productivity: { count: 4, tools: ['gmailDraftTool', 'createTasksTool', 'deleteTaskTool', 'completeTaskTool'] },
   },
 };
 

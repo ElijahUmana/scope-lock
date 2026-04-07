@@ -69,6 +69,8 @@ const TOOL_LABELS: Record<string, { label: string; icon: string }> = {
   getCalendarEventsTool: { label: 'Calendar', icon: '📅' },
   getTasksTool: { label: 'Tasks', icon: '✅' },
   createTasksTool: { label: 'Create Task', icon: '➕' },
+  deleteTaskTool: { label: 'Delete Task', icon: '🗑️' },
+  completeTaskTool: { label: 'Complete Task', icon: '☑️' },
   getUserInfoTool: { label: 'User Info', icon: '👤' },
   serpApiTool: { label: 'Web Search', icon: '🔍' },
 };

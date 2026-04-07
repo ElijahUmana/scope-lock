@@ -33,14 +33,6 @@ describe('Rate Limiter', () => {
       expect(first.remaining).toBe(14);
     });
 
-    it('commerce allows only 3 calls per window', () => {
-      const userId = uniqueUser();
-      const first = checkRateLimit(userId, 'commerce');
-      expect(first.allowed).toBe(true);
-      expect(first.limit).toBe(3);
-      expect(first.remaining).toBe(2);
-    });
-
     it('null agent uses default limit of 30', () => {
       const userId = uniqueUser();
       const first = checkRateLimit(userId, null);
@@ -57,16 +49,16 @@ describe('Rate Limiter', () => {
   });
 
   describe('rate limit enforcement', () => {
-    it('blocks commerce agent after 3 calls', () => {
+    it('blocks after default limit', () => {
       const userId = uniqueUser();
 
-      // Use all 3 calls
-      checkRateLimit(userId, 'commerce');
-      checkRateLimit(userId, 'commerce');
-      checkRateLimit(userId, 'commerce');
+      // Use all 30 calls
+      for (let i = 0; i < 30; i++) {
+        expect(checkRateLimit(userId, null).allowed).toBe(true);
+      }
 
-      // 4th call should be blocked
-      const result = checkRateLimit(userId, 'commerce');
+      // 31st call should be blocked
+      const result = checkRateLimit(userId, null);
       expect(result.allowed).toBe(false);
       expect(result.remaining).toBe(0);
     });
@@ -87,14 +79,14 @@ describe('Rate Limiter', () => {
     it('remaining count decreases with each call', () => {
       const userId = uniqueUser();
 
-      const r1 = checkRateLimit(userId, 'commerce');
-      expect(r1.remaining).toBe(2);
+      const r1 = checkRateLimit(userId, null);
+      expect(r1.remaining).toBe(29);
 
-      const r2 = checkRateLimit(userId, 'commerce');
-      expect(r2.remaining).toBe(1);
+      const r2 = checkRateLimit(userId, null);
+      expect(r2.remaining).toBe(28);
 
-      const r3 = checkRateLimit(userId, 'commerce');
-      expect(r3.remaining).toBe(0);
+      const r3 = checkRateLimit(userId, null);
+      expect(r3.remaining).toBe(27);
     });
   });
 
@@ -102,19 +94,19 @@ describe('Rate Limiter', () => {
     it('resets after the 5-minute window expires', () => {
       const userId = uniqueUser();
 
-      // Exhaust commerce limit
-      checkRateLimit(userId, 'commerce');
-      checkRateLimit(userId, 'commerce');
-      checkRateLimit(userId, 'commerce');
-      expect(checkRateLimit(userId, 'commerce').allowed).toBe(false);
+      // Exhaust writer limit (15)
+      for (let i = 0; i < 15; i++) {
+        checkRateLimit(userId, 'writer');
+      }
+      expect(checkRateLimit(userId, 'writer').allowed).toBe(false);
 
       // Advance past the 5-minute window
       vi.advanceTimersByTime(5 * 60 * 1000 + 1);
 
       // Should be allowed again with a fresh window
-      const result = checkRateLimit(userId, 'commerce');
+      const result = checkRateLimit(userId, 'writer');
       expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(2);
+      expect(result.remaining).toBe(14);
     });
   });
 
@@ -123,26 +115,26 @@ describe('Rate Limiter', () => {
       const userA = uniqueUser();
       const userB = uniqueUser();
 
-      // Exhaust userA's commerce limit
-      checkRateLimit(userA, 'commerce');
-      checkRateLimit(userA, 'commerce');
-      checkRateLimit(userA, 'commerce');
-      expect(checkRateLimit(userA, 'commerce').allowed).toBe(false);
+      // Exhaust userA's writer limit (15)
+      for (let i = 0; i < 15; i++) {
+        checkRateLimit(userA, 'writer');
+      }
+      expect(checkRateLimit(userA, 'writer').allowed).toBe(false);
 
       // userB should still have full quota
-      const result = checkRateLimit(userB, 'commerce');
+      const result = checkRateLimit(userB, 'writer');
       expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(2);
+      expect(result.remaining).toBe(14);
     });
 
     it('limits are tracked separately per agent for the same user', () => {
       const userId = uniqueUser();
 
-      // Exhaust commerce limit for this user
-      checkRateLimit(userId, 'commerce');
-      checkRateLimit(userId, 'commerce');
-      checkRateLimit(userId, 'commerce');
-      expect(checkRateLimit(userId, 'commerce').allowed).toBe(false);
+      // Exhaust writer limit for this user (15)
+      for (let i = 0; i < 15; i++) {
+        checkRateLimit(userId, 'writer');
+      }
+      expect(checkRateLimit(userId, 'writer').allowed).toBe(false);
 
       // Reader should still be available for the same user
       const result = checkRateLimit(userId, 'reader');
@@ -154,44 +146,45 @@ describe('Rate Limiter', () => {
   describe('getRateLimitStatus (peek without incrementing)', () => {
     it('returns full quota when no calls have been made', () => {
       const userId = uniqueUser();
-      const status = getRateLimitStatus(userId, 'commerce');
+      const status = getRateLimitStatus(userId, null);
       expect(status.allowed).toBe(true);
-      expect(status.remaining).toBe(3);
-      expect(status.limit).toBe(3);
+      expect(status.remaining).toBe(30);
+      expect(status.limit).toBe(30);
     });
 
     it('does not decrement the counter', () => {
       const userId = uniqueUser();
 
       // Peek twice -- should not consume any quota
-      getRateLimitStatus(userId, 'commerce');
-      getRateLimitStatus(userId, 'commerce');
+      getRateLimitStatus(userId, null);
+      getRateLimitStatus(userId, null);
 
-      // All 3 calls should still be available
-      const r1 = checkRateLimit(userId, 'commerce');
+      // All calls should still be available
+      const r1 = checkRateLimit(userId, null);
       expect(r1.allowed).toBe(true);
-      expect(r1.remaining).toBe(2); // 3 - 1 = 2
+      expect(r1.remaining).toBe(29); // 30 - 1 = 29
     });
 
     it('reflects consumed calls accurately', () => {
       const userId = uniqueUser();
 
-      checkRateLimit(userId, 'commerce');
-      checkRateLimit(userId, 'commerce');
+      checkRateLimit(userId, null);
+      checkRateLimit(userId, null);
 
-      const status = getRateLimitStatus(userId, 'commerce');
-      expect(status.remaining).toBe(1);
+      const status = getRateLimitStatus(userId, null);
+      expect(status.remaining).toBe(28);
       expect(status.allowed).toBe(true);
     });
 
     it('shows not allowed when limit is exhausted', () => {
       const userId = uniqueUser();
 
-      checkRateLimit(userId, 'commerce');
-      checkRateLimit(userId, 'commerce');
-      checkRateLimit(userId, 'commerce');
+      // Exhaust all 30 calls
+      for (let i = 0; i < 30; i++) {
+        checkRateLimit(userId, null);
+      }
 
-      const status = getRateLimitStatus(userId, 'commerce');
+      const status = getRateLimitStatus(userId, null);
       expect(status.allowed).toBe(false);
       expect(status.remaining).toBe(0);
     });

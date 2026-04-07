@@ -120,7 +120,9 @@ describe('Scope Presets', () => {
       expect(tools).toContain('getUserInfoTool');
       expect(tools).toContain('gmailDraftTool');
       expect(tools).toContain('createTasksTool');
-      expect(tools.length).toBe(6);
+      expect(tools).toContain('deleteTaskTool');
+      expect(tools).toContain('completeTaskTool');
+      expect(tools.length).toBe(8);
     });
 
     it('returns empty array for invalid preset ID', () => {

@@ -18,12 +18,10 @@ export interface RateLimitResult {
 // Rate limits per agent, tuned by risk level:
 // - Reader (low risk): generous — reads are safe
 // - Writer (medium risk): restricted — writes mutate state
-// - Commerce (high risk): very restricted — financial operations
 // - No agent: moderate default
 const AGENT_RATE_LIMITS: Record<string, { maxCalls: number; windowMs: number }> = {
   reader: { maxCalls: 50, windowMs: 5 * 60 * 1000 },
   writer: { maxCalls: 15, windowMs: 5 * 60 * 1000 },
-  commerce: { maxCalls: 3, windowMs: 5 * 60 * 1000 },
   __default__: { maxCalls: 30, windowMs: 5 * 60 * 1000 },
 };
 

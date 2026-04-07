@@ -36,6 +36,8 @@ const TOOL_METADATA: Record<
   getCalendarEventsTool: { scopes: ['calendar.events'], connection: 'google-oauth2', credentialsContext: 'thread' },
   getTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
   createTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
+  deleteTaskTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'tool-call' },
+  completeTaskTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'tool-call' },
   getUserInfoTool: { scopes: ['openid', 'profile'], connection: 'auth0', credentialsContext: 'thread' },
 };
 

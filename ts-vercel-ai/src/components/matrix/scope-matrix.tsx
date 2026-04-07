@@ -60,7 +60,7 @@ const AGENTS: AgentInfo[] = [
     id: 'writer',
     name: 'Writer',
     icon: '\u{270D}\u{FE0F}',
-    tools: ['gmailDraftTool', 'createTasksTool'],
+    tools: ['gmailDraftTool', 'createTasksTool', 'deleteTaskTool', 'completeTaskTool'],
     colorClass: 'text-amber-300',
     bgClass: 'bg-amber-500/10',
     borderClass: 'border-amber-500/30',
@@ -128,6 +128,26 @@ const TOOLS: ToolInfo[] = [
     credentialsContext: 'tool-call',
     connection: 'google-oauth2',
   },
+  {
+    id: 'deleteTaskTool',
+    label: 'Delete Task',
+    icon: <ListTodo className="h-4 w-4 text-green-400" />,
+    riskLevel: 'AMBER',
+    action: 'warn-and-proceed',
+    requiredScopes: ['tasks'],
+    credentialsContext: 'tool-call',
+    connection: 'google-oauth2',
+  },
+  {
+    id: 'completeTaskTool',
+    label: 'Complete Task',
+    icon: <ListTodo className="h-4 w-4 text-green-400" />,
+    riskLevel: 'AMBER',
+    action: 'warn-and-proceed',
+    requiredScopes: ['tasks'],
+    credentialsContext: 'tool-call',
+    connection: 'google-oauth2',
+  },
 ];
 
 const PRESETS: PresetInfo[] = [
@@ -151,7 +171,7 @@ const PRESETS: PresetInfo[] = [
     id: 'productivity',
     name: 'Productivity',
     icon: <Unlock className="h-4 w-4" />,
-    description: 'Full access including writes and financial operations',
+    description: 'Full access including write operations',
     allowedTools: [
       'gmailSearchTool',
       'getCalendarEventsTool',
@@ -159,6 +179,8 @@ const PRESETS: PresetInfo[] = [
       'getUserInfoTool',
       'gmailDraftTool',
       'createTasksTool',
+      'deleteTaskTool',
+      'completeTaskTool',
     ],
     color: 'amber',
   },
