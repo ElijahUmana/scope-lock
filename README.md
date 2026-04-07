@@ -121,9 +121,22 @@ Every step is visible. Every scope is earned. Every action is logged.
 
 ---
 
+## Two Operating Modes
+
+Scope Lock offers two modes, toggled from the chat interface:
+
+| Mode | Default | How It Works |
+|------|---------|-------------|
+| **Progressive Mode** | Yes | A single unified agent with access to ALL tools. Scopes are earned progressively through Token Vault interrupts as the conversation naturally requires them. The agent never tells the user to "switch agents" -- it requests each scope escalation inline. |
+| **Strict Isolation Mode** | No (toggle) | Two separate agents (Reader + Writer) with hard credential boundaries. Each agent can ONLY access its authorized tools. Demonstrates real tool-level enforcement, not prompt engineering. |
+
+Progressive Mode is the default experience -- judges see zero-trust start, progressive scope expansion, and cross-service escalation in a single conversation. Strict Isolation Mode is an advanced toggle that demonstrates the multi-agent credential isolation architecture.
+
+---
+
 ## Features
 
-### 1. Multi-Agent Scope Isolation
+### 1. Multi-Agent Scope Isolation (Strict Isolation Mode)
 
 Two specialized agents with **hard credential boundaries** -- not prompt-level restrictions, but actual tool-level enforcement. Each agent is constructed with only its authorized tools passed to the LLM. The Reader Agent physically cannot invoke `gmailDraftTool` because the tool does not exist in its execution context.
 
