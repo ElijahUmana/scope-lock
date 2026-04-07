@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0 } from '@/lib/auth0';
-import { getAuditLog } from '@/lib/audit';
+import { getAuditLog, hasRealEntries, removeDemoEntries } from '@/lib/audit';
 import { getActiveAlerts } from '@/lib/anomaly-detection';
 import { seedDemoData } from '@/lib/demo-data';
+import { clearScopeRequests } from '@/lib/actions/audit';
 
 export async function GET(req: NextRequest) {
   const session = await auth0.getSession();
@@ -19,6 +20,14 @@ export async function GET(req: NextRequest) {
     entries = getAuditLog(userId);
   }
 
+  // If real entries exist alongside demo entries, purge the demo entries
+  if (hasRealEntries(userId)) {
+    removeDemoEntries(userId);
+    await clearScopeRequests(userId);
+    entries = getAuditLog(userId);
+  }
+
+  const isDemoData = entries.length > 0 && entries.every((e) => e.toolName.startsWith('[demo] '));
   const anomalyAlerts = getActiveAlerts(userId);
-  return NextResponse.json({ entries, anomalyAlerts });
+  return NextResponse.json({ entries, anomalyAlerts, isDemoData });
 }

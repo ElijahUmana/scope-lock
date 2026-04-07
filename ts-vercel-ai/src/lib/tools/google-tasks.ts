@@ -101,7 +101,16 @@ export const createTasksTool = withTasks(
           },
         });
 
-        return response.data;
+        const task = response.data;
+
+        return {
+          id: task.id,
+          title: task.title || 'No title',
+          notes: task.notes,
+          status: task.status,
+          due: task.due,
+          selfLink: task.selfLink,
+        };
       } catch (error) {
         if (error instanceof GaxiosError) {
           if (error.status === 401) {

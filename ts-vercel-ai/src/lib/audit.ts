@@ -52,6 +52,31 @@ export function clearAuditLog(userId: string): void {
   auditStore.delete(userId);
 }
 
+/**
+ * Remove all demo entries (toolName starting with "[demo] ") from the audit log.
+ * Preserves only real entries. Returns true if any demo entries were removed.
+ */
+export function removeDemoEntries(userId: string): boolean {
+  const entries = auditStore.get(userId);
+  if (!entries) return false;
+  const realEntries = entries.filter((e) => !e.toolName.startsWith('[demo] '));
+  if (realEntries.length === entries.length) return false;
+  if (realEntries.length === 0) {
+    auditStore.delete(userId);
+  } else {
+    auditStore.set(userId, realEntries);
+  }
+  return true;
+}
+
+/**
+ * Check whether the audit log contains any real (non-demo) entries.
+ */
+export function hasRealEntries(userId: string): boolean {
+  const entries = auditStore.get(userId) ?? [];
+  return entries.some((e) => !e.toolName.startsWith('[demo] '));
+}
+
 // Cryptographic audit chain
 import { createHash } from 'crypto';
 

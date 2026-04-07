@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, type FormEvent, type ReactNode } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, type FormEvent, type ReactNode } from 'react';
 import { type UIMessage, DefaultChatTransport, generateId, lastAssistantMessageIsCompleteWithToolCalls } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { toast } from 'sonner';
@@ -11,10 +11,12 @@ import { useInterruptions } from '@auth0/ai-vercel/react';
 import { TokenVaultInterruptHandler } from '@/components/TokenVaultInterruptHandler';
 import { ChatMessageBubble } from '@/components/chat-message-bubble';
 import { ScopePresetSelector } from '@/components/chat/scope-preset-selector';
+import { RateLimitIndicator } from '@/components/chat/rate-limit-indicator';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
 import { getAgentProfile } from '@/lib/agents';
 import { getPreset } from '@/lib/scope-presets';
+import type { RateLimitResult } from '@/lib/rate-limiter';
 
 // Human-readable labels for tool names, used in the welcome message
 const TOOL_LABEL_MAP: Record<string, { label: string; icon: string }> = {
@@ -29,6 +31,11 @@ const TOOL_LABEL_MAP: Record<string, { label: string; icon: string }> = {
 
 // Suggested actions per agent, contextual to what each agent can do
 const AGENT_SUGGESTIONS: Record<string, Array<{ icon: string; label: string; prompt: string }>> = {
+  progressive: [
+    { icon: '📧', label: 'Triage your inbox', prompt: "'Triage my inbox'" },
+    { icon: '✏️', label: 'Read and reply', prompt: "'Show my latest emails, then draft a reply to the most urgent one'" },
+    { icon: '📅', label: 'Full daily briefing', prompt: "'Give me a morning briefing: emails, calendar, and tasks'" },
+  ],
   reader: [
     { icon: '📧', label: 'Triage your inbox', prompt: "'Show me my recent emails'" },
     { icon: '📅', label: 'Check your schedule', prompt: "'What's on my calendar today?'" },
@@ -46,20 +53,25 @@ const AGENT_SUGGESTIONS: Record<string, Array<{ icon: string; label: string; pro
   ],
 };
 
-function buildWelcomeMessage(userName: string, agentId: string, presetId: string): UIMessage {
-  const agent = getAgentProfile(agentId);
+function buildWelcomeMessage(userName: string, agentId: string | undefined, presetId: string): UIMessage {
+  const isProgressive = !agentId;
+  const agent = agentId ? getAgentProfile(agentId) : undefined;
   const preset = getPreset(presetId);
 
-  const agentName = agent?.name ?? 'Agent';
-  const agentIcon = agent?.icon ?? '🤖';
   const presetName = preset?.name ?? 'Privacy';
 
-  // Determine which tools are available: intersection of agent tools and preset allowed tools
-  const agentTools = agent?.tools ?? [];
+  // In progressive mode, tools come from the preset only (no agent filter)
+  // In strict mode, tools come from the intersection of agent and preset
   const presetTools = preset?.allowedTools ?? [];
-  const availableTools = presetId === 'lockdown'
-    ? []
-    : agentTools.filter((t) => presetTools.includes(t));
+  let availableTools: string[];
+  if (presetId === 'lockdown') {
+    availableTools = [];
+  } else if (isProgressive) {
+    availableTools = presetTools;
+  } else {
+    const agentTools = agent?.tools ?? [];
+    availableTools = agentTools.filter((t) => presetTools.includes(t));
+  }
 
   const toolLines = availableTools
     .map((t) => {
@@ -68,7 +80,9 @@ function buildWelcomeMessage(userName: string, agentId: string, presetId: string
     })
     .filter(Boolean);
 
-  const suggestions = AGENT_SUGGESTIONS[agentId] ?? AGENT_SUGGESTIONS.reader;
+  const suggestions = isProgressive
+    ? AGENT_SUGGESTIONS.progressive
+    : (AGENT_SUGGESTIONS[agentId] ?? AGENT_SUGGESTIONS.reader);
 
   // Build the status line based on preset
   let statusLine: string;
@@ -80,16 +94,27 @@ function buildWelcomeMessage(userName: string, agentId: string, presetId: string
     statusLine = `🔒 **Current Status:** Zero permissions active. I'll request each scope as needed.`;
   }
 
-  const sections = [
-    `Hello ${userName}! I'm your **${agentName}** ${agentIcon} running in **${presetName}** mode.\n`,
-    statusLine,
-  ];
+  // Build intro line
+  let introLine: string;
+  if (isProgressive) {
+    introLine = `Hello ${userName}! I'm **Scope Lock**, your progressive authorization assistant.\n`;
+  } else {
+    const agentName = agent?.name ?? 'Agent';
+    const agentIcon = agent?.icon ?? '🤖';
+    introLine = `Hello ${userName}! I'm your **${agentName}** ${agentIcon} running in **${presetName}** mode.\n`;
+  }
+
+  const sections = [introLine, statusLine];
+
+  if (isProgressive && presetId !== 'lockdown') {
+    sections.push('\nI start with **zero permissions** and request each one as needed. You approve every scope escalation before I access anything.');
+  }
 
   if (toolLines.length > 0) {
     sections.push(`\n**Available tools:** ${toolLines.join(' · ')}`);
   }
 
-  sections.push('\n**I can help you with:**');
+  sections.push('\n**Try:**');
   suggestions.forEach((s, i) => {
     sections.push(`${i + 1}. ${s.icon} **${s.label}** — ${s.prompt}`);
   });
@@ -184,7 +209,7 @@ function ChatMessages(props: {
 }) {
   return (
     <div className="flex flex-col max-w-[768px] mx-auto pb-12 w-full px-3 md:px-0">
-      {props.messages.map((m, i) => {
+      {props.messages.map((m) => {
         return <ChatMessageBubble key={m.id} message={m} aiEmoji={props.aiEmoji} />;
       })}
     </div>
@@ -269,6 +294,14 @@ function StickyToBottomContent(props: {
   );
 }
 
+function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T | undefined>(undefined);
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+}
+
 export function ChatWindow(props: {
   endpoint: string;
   emptyStateComponent: ReactNode;
@@ -276,11 +309,24 @@ export function ChatWindow(props: {
   emoji?: string;
   agentId?: string;
   userName?: string;
+  strictMode?: boolean;
 }) {
-  const [presetId, setPresetId] = useState('privacy');
+  // Progressive mode defaults to 'productivity' (all tools available, scopes earned via Token Vault)
+  // Strict isolation mode defaults to 'privacy' (read-only)
+  const defaultPreset = props.strictMode ? 'privacy' : 'productivity';
+  const [presetId, setPresetId] = useState(defaultPreset);
+
+  // Reset preset when mode changes
+  const prevStrictMode = usePrevious(props.strictMode);
+  if (prevStrictMode !== undefined && prevStrictMode !== props.strictMode) {
+    const newDefault = props.strictMode ? 'privacy' : 'productivity';
+    if (presetId !== newDefault) {
+      setPresetId(newDefault);
+    }
+  }
 
   const welcomeMessage = useMemo(
-    () => buildWelcomeMessage(props.userName ?? 'there', props.agentId ?? 'reader', presetId),
+    () => buildWelcomeMessage(props.userName ?? 'there', props.agentId, presetId),
     [props.userName, props.agentId, presetId],
   );
 
@@ -308,6 +354,28 @@ export function ChatWindow(props: {
   );
 
   const [input, setInput] = useState('');
+  const [rateLimitStatus, setRateLimitStatus] = useState<RateLimitResult | null>(null);
+
+  const fetchRateLimitStatus = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (props.agentId) params.set('agentId', props.agentId);
+      const qs = params.toString();
+      const url = qs ? `/api/rate-limit?${qs}` : '/api/rate-limit';
+      const res = await fetch(url);
+      if (res.ok) {
+        const data: RateLimitResult = await res.json();
+        setRateLimitStatus(data);
+      }
+    } catch {
+      // Silently ignore fetch errors — indicator will stay hidden
+    }
+  }, [props.agentId]);
+
+  // Fetch initial status on mount and when agentId changes
+  useEffect(() => {
+    fetchRateLimitStatus();
+  }, [fetchRateLimitStatus]);
 
   const isChatLoading = status === 'streaming';
 
@@ -317,6 +385,8 @@ export function ChatWindow(props: {
     const text = input;
     setInput('');
     await sendMessage({ text });
+    // Refresh rate limit status after sending a message
+    fetchRateLimitStatus();
   }
 
   return (
@@ -331,9 +401,11 @@ export function ChatWindow(props: {
               messages.length === 0 ? (
                 <div>
                   {props.emptyStateComponent}
-                  <div className="flex flex-col max-w-[768px] mx-auto pt-4 w-full px-3 md:px-0">
-                    <ChatMessageBubble message={welcomeMessage} aiEmoji={props.emoji} />
-                  </div>
+                  {props.strictMode && (
+                    <div className="flex flex-col max-w-[768px] mx-auto pt-4 w-full px-3 md:px-0">
+                      <ChatMessageBubble message={welcomeMessage} aiEmoji={props.emoji} />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -347,7 +419,7 @@ export function ChatWindow(props: {
             footer={
               <div className="sticky bottom-4 md:bottom-8 px-3 md:px-2">
                 <ScrollToBottom className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4" />
-                <ScopePresetSelector activePresetId={presetId} onPresetChange={setPresetId} />
+                {props.strictMode && <ScopePresetSelector activePresetId={presetId} onPresetChange={setPresetId} />}
                 <ChatInput
                   value={input}
                   onChange={(e) => setInput(e.target.value)}

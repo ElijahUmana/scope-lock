@@ -159,6 +159,169 @@ describe('Anomaly Detection', () => {
     });
   });
 
+  describe('SCOPE_HOPPING', () => {
+    it('detected with 3+ distinct connections in 30s', () => {
+      const now = Date.now();
+
+      const entry1 = makeAuditEntry({
+        connection: 'google-oauth2',
+        timestamp: new Date(now - 20_000).toISOString(),
+      });
+      checkForAnomalies(TEST_USER, entry1);
+
+      const entry2 = makeAuditEntry({
+        toolName: 'listRepositories',
+        connection: 'github',
+        scopes: ['repo'],
+        timestamp: new Date(now - 10_000).toISOString(),
+      });
+      checkForAnomalies(TEST_USER, entry2);
+
+      const entry3 = makeAuditEntry({
+        toolName: 'shopOnlineTool',
+        connection: 'ciba',
+        scopes: ['product:buy'],
+        riskLevel: 'RED',
+        timestamp: new Date(now).toISOString(),
+      });
+      const alerts = checkForAnomalies(TEST_USER, entry3);
+
+      const hoppingAlerts = alerts.filter((a) => a.type === 'SCOPE_HOPPING');
+      expect(hoppingAlerts).toHaveLength(1);
+      expect(hoppingAlerts[0].severity).toBe('medium');
+      expect(hoppingAlerts[0].details.connectionCount).toBe(3);
+    });
+
+    it('not detected with fewer than 3 connections in 30s', () => {
+      const now = Date.now();
+
+      const entry1 = makeAuditEntry({
+        connection: 'google-oauth2',
+        timestamp: new Date(now - 10_000).toISOString(),
+      });
+      checkForAnomalies(TEST_USER, entry1);
+
+      const entry2 = makeAuditEntry({
+        connection: 'google-oauth2',
+        toolName: 'gmailDraftTool',
+        timestamp: new Date(now).toISOString(),
+      });
+      const alerts = checkForAnomalies(TEST_USER, entry2);
+
+      const hoppingAlerts = alerts.filter((a) => a.type === 'SCOPE_HOPPING');
+      expect(hoppingAlerts).toHaveLength(0);
+    });
+
+    it('not detected when connections are outside 30s window', () => {
+      const now = Date.now();
+
+      const entry1 = makeAuditEntry({
+        connection: 'google-oauth2',
+        timestamp: new Date(now - 60_000).toISOString(),
+      });
+      checkForAnomalies(TEST_USER, entry1);
+
+      const entry2 = makeAuditEntry({
+        toolName: 'listRepositories',
+        connection: 'github',
+        scopes: ['repo'],
+        timestamp: new Date(now - 50_000).toISOString(),
+      });
+      checkForAnomalies(TEST_USER, entry2);
+
+      const entry3 = makeAuditEntry({
+        toolName: 'shopOnlineTool',
+        connection: 'ciba',
+        scopes: ['product:buy'],
+        riskLevel: 'RED',
+        timestamp: new Date(now).toISOString(),
+      });
+      const alerts = checkForAnomalies(TEST_USER, entry3);
+
+      const hoppingAlerts = alerts.filter((a) => a.type === 'SCOPE_HOPPING');
+      expect(hoppingAlerts).toHaveLength(0);
+    });
+  });
+
+  describe('UNUSUAL_SCOPE', () => {
+    it('detected when a new tool is used after baseline is established', () => {
+      const now = Date.now();
+
+      // Build baseline: 6 calls with the same tool (>= UNUSUAL_SCOPE_BASELINE_COUNT + 1)
+      for (let i = 0; i < 6; i++) {
+        const entry = makeAuditEntry({
+          toolName: 'gmailSearchTool',
+          timestamp: new Date(now - (60_000 * (6 - i))).toISOString(),
+        });
+        checkForAnomalies(TEST_USER, entry);
+      }
+
+      // Now use a brand-new tool
+      const novelEntry = makeAuditEntry({
+        toolName: 'shopOnlineTool',
+        connection: 'ciba',
+        scopes: ['product:buy'],
+        riskLevel: 'RED',
+        timestamp: new Date(now).toISOString(),
+      });
+      const alerts = checkForAnomalies(TEST_USER, novelEntry);
+
+      const unusualAlerts = alerts.filter((a) => a.type === 'UNUSUAL_SCOPE');
+      expect(unusualAlerts).toHaveLength(1);
+      expect(unusualAlerts[0].details.toolName).toBe('shopOnlineTool');
+    });
+
+    it('not detected when tool was used before', () => {
+      const now = Date.now();
+
+      // Build baseline with two tools
+      for (let i = 0; i < 6; i++) {
+        const toolName = i % 2 === 0 ? 'gmailSearchTool' : 'getCalendarEventsTool';
+        const entry = makeAuditEntry({
+          toolName,
+          timestamp: new Date(now - (60_000 * (6 - i))).toISOString(),
+        });
+        checkForAnomalies(TEST_USER, entry);
+      }
+
+      // Use a tool that's already been used
+      const repeatEntry = makeAuditEntry({
+        toolName: 'gmailSearchTool',
+        timestamp: new Date(now).toISOString(),
+      });
+      const alerts = checkForAnomalies(TEST_USER, repeatEntry);
+
+      const unusualAlerts = alerts.filter((a) => a.type === 'UNUSUAL_SCOPE');
+      expect(unusualAlerts).toHaveLength(0);
+    });
+
+    it('not detected before baseline is established', () => {
+      const now = Date.now();
+
+      // Only 3 calls (below the baseline threshold of 5+1)
+      for (let i = 0; i < 3; i++) {
+        const entry = makeAuditEntry({
+          toolName: 'gmailSearchTool',
+          timestamp: new Date(now - (60_000 * (3 - i))).toISOString(),
+        });
+        checkForAnomalies(TEST_USER, entry);
+      }
+
+      // New tool, but baseline not established yet
+      const novelEntry = makeAuditEntry({
+        toolName: 'shopOnlineTool',
+        connection: 'ciba',
+        scopes: ['product:buy'],
+        riskLevel: 'RED',
+        timestamp: new Date(now).toISOString(),
+      });
+      const alerts = checkForAnomalies(TEST_USER, novelEntry);
+
+      const unusualAlerts = alerts.filter((a) => a.type === 'UNUSUAL_SCOPE');
+      expect(unusualAlerts).toHaveLength(0);
+    });
+  });
+
   describe('getActiveAlerts', () => {
     it('returns empty array when no alerts', () => {
       const alerts = getActiveAlerts(TEST_USER);

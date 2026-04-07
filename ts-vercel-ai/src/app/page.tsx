@@ -1,6 +1,5 @@
 import { Shield, Lock, Unlock, ChevronRight, Zap, Eye, ShieldCheck, FlaskConical, BarChart3 } from 'lucide-react';
 import { AgentSelector } from '@/components/agent-selector';
-import { OnboardingOverlay } from '@/components/onboarding/onboarding-overlay';
 import { GuideInfoBox } from '@/components/guide/GuideInfoBox';
 import { Button } from '@/components/ui/button';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -89,27 +88,15 @@ export default async function Home() {
 
   const InfoCard = (
     <GuideInfoBox>
-      <div className="space-y-2">
-        <p className="text-base font-medium text-white/80">Email Triage Agent</p>
-        <p className="text-sm text-white/50">
-          Your AI inbox assistant. Say &quot;triage my inbox&quot; to categorize emails as Urgent, Action, Info, or Low Priority — then act on them.
-        </p>
-        <div className="flex flex-wrap justify-center gap-2 pt-1 text-xs text-white/40">
-          <span className="px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-300">1. Read emails (gmail.readonly)</span>
-          <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300">2. Draft replies (gmail.compose)</span>
-          <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300">3. Check calendar (calendar.events)</span>
-          <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300">4. Create tasks (tasks)</span>
-        </div>
-      </div>
+      <p className="text-sm text-white/50">
+        Email Triage Agent &mdash; Say &quot;triage my inbox&quot; to begin.
+      </p>
     </GuideInfoBox>
   );
 
   return (
-    <>
-      <OnboardingOverlay />
-      <ErrorBoundary pageName="Chat">
-        <AgentSelector userName={session?.user?.name ?? 'there'} infoCard={InfoCard} />
-      </ErrorBoundary>
-    </>
+    <ErrorBoundary pageName="Chat">
+      <AgentSelector userName={session?.user?.name ?? 'there'} infoCard={InfoCard} />
+    </ErrorBoundary>
   );
 }

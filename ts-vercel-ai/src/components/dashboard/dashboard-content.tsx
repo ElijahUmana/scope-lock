@@ -40,17 +40,20 @@ import DelegationChain from './delegation-chain';
 import TokenInspector from './token-inspector';
 import ScopeExpiry from './scope-expiry';
 import TokenLifecycle from './token-lifecycle';
+import AnomalyAlerts from './anomaly-alerts';
 
 import {
   ConnectedAccount,
   fetchConnectedAccounts,
   deleteConnectedAccount,
 } from '@/lib/actions/profile';
+import { type AuditEntry } from '@/lib/audit';
+import { type AnomalyAlert } from '@/lib/anomaly-detection';
 import {
-  type AuditEntry,
   type ScopeRequest,
   fetchAuditEntries,
   fetchScopeRequests,
+  fetchAnomalyAlerts,
 } from '@/lib/actions/audit';
 import { POLICY_RULES, type PolicyRule } from '@/lib/policy-constants';
 
@@ -397,6 +400,7 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [scopeRequests, setScopeRequests] = useState<ScopeRequest[]>([]);
+  const [anomalyAlerts, setAnomalyAlerts] = useState<AnomalyAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -434,14 +438,22 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
 
   const loadData = useCallback(async () => {
     try {
-      const [accounts, entries, requests] = await Promise.all([
+      const [accounts, auditResult, requests, alerts] = await Promise.all([
         fetchConnectedAccounts(),
         fetchAuditEntries(),
         fetchScopeRequests(),
+        fetchAnomalyAlerts(),
       ]);
+      const { entries, isDemoData } = auditResult;
       setConnectedAccounts(accounts);
       setAuditEntries(entries);
       setScopeRequests(requests);
+      setAnomalyAlerts(alerts);
+      if (isDemoData) {
+        setShowDemoBanner(true);
+      } else if (entries.length > 0) {
+        setShowDemoBanner(false);
+      }
       // Persist to localStorage so data survives cold starts
       saveCacheToLocalStorage(entries, requests);
       return { entries, requests };
@@ -461,12 +473,10 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
     if (cached && cached.entries.length > 0) {
       setAuditEntries(cached.entries);
       setScopeRequests(cached.requests);
-      const hasDemo = cached.entries.some((e: AuditEntry) =>
+      const allDemo = cached.entries.every((e: AuditEntry) =>
         e.toolName.startsWith('[demo] ')
       );
-      if (hasDemo) {
-        setShowDemoBanner(true);
-      }
+      setShowDemoBanner(allDemo);
       // Stop showing the loading spinner since we have cached data
       setLoading(false);
     }
@@ -488,13 +498,6 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
         } catch {
           // Seeding failed silently — dashboard stays empty
         }
-      } else if (result) {
-        const hasDemo = result.entries.some((e: AuditEntry) =>
-          e.toolName.startsWith('[demo] ')
-        );
-        if (hasDemo) {
-          setShowDemoBanner(true);
-        }
       }
     }
 
@@ -503,17 +506,22 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
     // Poll for audit entries every 10 seconds
     const interval = setInterval(async () => {
       try {
-        const [entries, requests] = await Promise.all([
+        const [auditResult, requests, alerts] = await Promise.all([
           fetchAuditEntries(),
           fetchScopeRequests(),
+          fetchAnomalyAlerts(),
         ]);
+        const { entries, isDemoData } = auditResult;
         setAuditEntries(entries);
         setScopeRequests(requests);
+        setAnomalyAlerts(alerts);
         // Update localStorage cache on each poll
         saveCacheToLocalStorage(entries, requests);
 
         // Hide demo banner once real (non-demo) data appears
-        if (entries.length > 0 && !entries.some((e) => e.toolName.startsWith('[demo] '))) {
+        if (isDemoData) {
+          setShowDemoBanner(true);
+        } else if (entries.length > 0) {
           setShowDemoBanner(false);
         }
       } catch {
@@ -582,10 +590,13 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-indigo-500/10 border border-indigo-500/25">
           <Eye className="h-4 w-4 text-indigo-300 flex-shrink-0" />
           <p className="text-sm text-indigo-200/80">
-            Demo data — interact with the agent to see your real activity
+            This is sample data. It will be replaced with your real activity as you interact with the agent.
           </p>
         </div>
       )}
+
+      {/* Anomaly Alerts */}
+      <AnomalyAlerts alerts={anomalyAlerts} />
 
       {/* Get Started Card — shown only when the dashboard is empty */}
       {!hasActivity && (
@@ -982,13 +993,17 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {auditEntries.map((entry) => (
+                  {auditEntries.map((entry) => {
+                    const displayName = entry.toolName.startsWith('[demo] ')
+                      ? entry.toolName.slice(7)
+                      : entry.toolName;
+                    return (
                     <tr key={entry.id} className="group hover:bg-white/5 transition-colors">
                       <td className="py-2.5 pl-3 pr-2">
                         <div className="flex items-center gap-2">
-                          {TOOL_ICONS[entry.toolName] || <Activity className="h-4 w-4 text-white/40" />}
-                          <span className="text-sm text-white/80 font-mono truncate max-w-[120px]" title={entry.toolName}>
-                            {entry.toolName}
+                          {TOOL_ICONS[displayName] || <Activity className="h-4 w-4 text-white/40" />}
+                          <span className="text-sm text-white/80 font-mono truncate max-w-[120px]" title={displayName}>
+                            {displayName}
                           </span>
                         </div>
                       </td>
@@ -1039,7 +1054,8 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

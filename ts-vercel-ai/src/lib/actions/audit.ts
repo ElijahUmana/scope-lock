@@ -1,9 +1,10 @@
 'use server';
 
 import { auth0 } from '@/lib/auth0';
-import { getAuditLog, type AuditEntry } from '@/lib/audit';
+import { getAuditLog, hasRealEntries, removeDemoEntries, type AuditEntry } from '@/lib/audit';
+import { getActiveAlerts, type AnomalyAlert } from '@/lib/anomaly-detection';
 
-export type { AuditEntry };
+export type { AuditEntry, AnomalyAlert };
 
 export interface ScopeRequest {
   id: string;
@@ -40,13 +41,38 @@ export async function recordScopeRequest(
 /**
  * Fetch audit entries for the current authenticated user.
  * Reads from the shared in-memory store that the chat route writes to.
+ *
+ * If real (non-demo) entries exist alongside demo entries, the demo entries
+ * are purged automatically so the dashboard shows only real activity.
+ *
+ * Returns { entries, isDemoData } where isDemoData is true only when all
+ * entries are demo data.
  */
-export async function fetchAuditEntries(): Promise<AuditEntry[]> {
+export async function fetchAuditEntries(): Promise<{ entries: AuditEntry[]; isDemoData: boolean }> {
   const session = await auth0.getSession();
-  if (!session?.user?.sub) return [];
-  const entries = getAuditLog(session.user.sub);
+  if (!session?.user?.sub) return { entries: [], isDemoData: false };
+
+  const userId = session.user.sub;
+
+  // If the user has real entries alongside demo entries, purge the demo entries
+  if (hasRealEntries(userId)) {
+    removeDemoEntries(userId);
+    await clearScopeRequests(userId);
+  }
+
+  const entries = getAuditLog(userId);
+  const isDemoData = entries.length > 0 && entries.every((e) => e.toolName.startsWith('[demo] '));
+
   // Return newest first
-  return [...entries].reverse();
+  return { entries: [...entries].reverse(), isDemoData };
+}
+
+/**
+ * Clear all scope requests for a user.
+ * Used when purging demo data after real activity begins.
+ */
+export async function clearScopeRequests(userId: string): Promise<void> {
+  scopeRequestStore.delete(userId);
 }
 
 /**
@@ -57,4 +83,13 @@ export async function fetchScopeRequests(): Promise<ScopeRequest[]> {
   if (!session?.user?.sub) return [];
   const requests = scopeRequestStore.get(session.user.sub) || [];
   return [...requests].reverse();
+}
+
+/**
+ * Fetch anomaly alerts for the current authenticated user.
+ */
+export async function fetchAnomalyAlerts(): Promise<AnomalyAlert[]> {
+  const session = await auth0.getSession();
+  if (!session?.user?.sub) return [];
+  return getActiveAlerts(session.user.sub);
 }
