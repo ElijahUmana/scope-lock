@@ -49,6 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <span className={`${robotoMono.className} text-white text-2xl`}>Scope Lock</span>
                 <nav className="flex gap-1 flex-col md:flex-row">
                   <ActiveLink href="/">Chat</ActiveLink>
+                  <ActiveLink href="/dashboard">Dashboard</ActiveLink>
                   <ActiveLink href="/profile">Profile</ActiveLink>
                 </nav>
               </div>

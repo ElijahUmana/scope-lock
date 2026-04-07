@@ -21,6 +21,7 @@ import { listRepositories } from '@/lib/tools/list-gh-repos';
 import { listGitHubEvents } from '@/lib/tools/list-gh-events';
 import { listSlackChannels } from '@/lib/tools/list-slack-channels';
 import { logToolCall } from '@/lib/audit';
+import { recordScopeRequest } from '@/lib/actions/audit';
 import { auth0 } from '@/lib/auth0';
 
 const date = new Date().toISOString();
@@ -115,28 +116,46 @@ export async function POST(req: NextRequest) {
             for (const part of output.content) {
               if (part.type === 'tool-call') {
                 const meta = TOOL_SCOPE_MAP[part.toolName] ?? { scopes: [], connection: 'unknown', credentialsContext: 'unknown' };
+                const now = new Date().toISOString();
                 logToolCall({
                   toolName: part.toolName,
                   scopes: meta.scopes,
-                  timestamp: new Date().toISOString(),
+                  timestamp: now,
                   success: true,
                   duration: 0,
                   userId,
                   connection: meta.connection,
                   credentialsContext: meta.credentialsContext,
                 });
+                // Record scope request for the dashboard timeline
+                recordScopeRequest(userId, {
+                  connection: meta.connection,
+                  scopes: meta.scopes,
+                  requestedAt: Date.now(),
+                  grantedAt: Date.now(),
+                  status: 'granted',
+                });
               }
               if (part.type === 'tool-error') {
                 const meta = TOOL_SCOPE_MAP[part.toolName] ?? { scopes: [], connection: 'unknown', credentialsContext: 'unknown' };
+                const now = new Date().toISOString();
                 logToolCall({
                   toolName: part.toolName,
                   scopes: meta.scopes,
-                  timestamp: new Date().toISOString(),
+                  timestamp: now,
                   success: false,
                   duration: 0,
                   userId,
                   connection: meta.connection,
                   credentialsContext: meta.credentialsContext,
+                });
+                // Record failed scope request
+                recordScopeRequest(userId, {
+                  connection: meta.connection,
+                  scopes: meta.scopes,
+                  requestedAt: Date.now(),
+                  grantedAt: null,
+                  status: 'denied',
                 });
               }
             }
