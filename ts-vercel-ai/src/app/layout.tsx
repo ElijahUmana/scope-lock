@@ -59,7 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   </div>
                 )}
                 <Button asChild variant="header" size="default">
-                  <a href="https://github.com/oktadev/scope-lock" target="_blank">
+                  <a href="https://github.com/ElijahUmana/scope-lock" target="_blank">
                     <Github className="size-3" />
                     <span>Open in GitHub</span>
                   </a>

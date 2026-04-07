@@ -132,8 +132,9 @@ export function ChatWindow(props: {
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!input.trim() || isChatLoading) return;
-    await sendMessage({ text: input });
+    const text = input;
     setInput('');
+    await sendMessage({ text });
   }
 
   return (

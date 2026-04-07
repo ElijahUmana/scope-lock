@@ -12,6 +12,7 @@ function uiMessageToText(message: UIMessage): string {
         if (typeof p?.content === 'string') return p.content;
         return '';
       })
+      .filter(Boolean)
       .join('');
   }
   return (message as any).content ?? '';

@@ -4,6 +4,22 @@ import { GmailCreateDraft, GmailSearch } from '@langchain/community/tools/gmail'
 
 import { getAccessToken, withGmailRead, withGmailWrite } from '../auth0-ai';
 
+// Strip HTML tags and decode entities to return clean text
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Provide the access token to the Gmail tools
 const gmailParams = {
   credentials: {
@@ -24,7 +40,7 @@ export const gmailSearchTool = withGmailRead(
     }),
     execute: async (args) => {
       const result = await gmailSearch._call(args);
-      return result;
+      return stripHtml(result);
     },
   }),
 );
