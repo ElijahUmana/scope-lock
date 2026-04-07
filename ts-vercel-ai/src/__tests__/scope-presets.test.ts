@@ -103,12 +103,26 @@ describe('Scope Presets', () => {
     it('returns read tools for privacy', () => {
       const tools = getToolNamesForPreset('privacy');
       expect(tools).toContain('gmailSearchTool');
-      expect(tools.length).toBe(4);
+      expect(tools).toContain('getCalendarEventsTool');
+      expect(tools).toContain('getTasksTool');
+      expect(tools).toContain('getUserInfoTool');
+      expect(tools).toContain('listRepositories');
+      expect(tools).toContain('listGitHubEvents');
+      expect(tools.length).toBe(6);
     });
 
     it('returns all tools for productivity', () => {
       const tools = getToolNamesForPreset('productivity');
-      expect(tools.length).toBe(7);
+      expect(tools).toContain('gmailSearchTool');
+      expect(tools).toContain('getCalendarEventsTool');
+      expect(tools).toContain('getTasksTool');
+      expect(tools).toContain('getUserInfoTool');
+      expect(tools).toContain('gmailDraftTool');
+      expect(tools).toContain('createTasksTool');
+      expect(tools).toContain('shopOnlineTool');
+      expect(tools).toContain('listRepositories');
+      expect(tools).toContain('listGitHubEvents');
+      expect(tools.length).toBe(9);
     });
 
     it('returns empty array for invalid preset ID', () => {

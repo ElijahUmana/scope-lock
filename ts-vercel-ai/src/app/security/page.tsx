@@ -19,10 +19,10 @@ export default async function SecurityPage({
 
   return (
     <div className="min-h-full bg-white/5 overflow-y-auto">
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Security</h1>
-          <p className="text-white/70">
+      <div className="max-w-7xl mx-auto px-4 py-4 md:p-6">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Security</h1>
+          <p className="text-sm md:text-base text-white/70">
             Authorization matrix, attack simulations, and architecture insights
           </p>
         </div>

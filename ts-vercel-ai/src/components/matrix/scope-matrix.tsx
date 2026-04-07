@@ -355,9 +355,9 @@ export default function ScopeMatrix() {
   const currentPreset = PRESETS.find((p) => p.id === activePreset);
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-6 md:space-y-8 pb-8 md:pb-12">
       {/* ── Preset toggle ── */}
-      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-5">
+      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 md:p-5">
         <div className="flex items-center gap-3 mb-4">
           <Shield className="h-5 w-5 text-white/40" />
           <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Scope Preset</h2>
@@ -380,12 +380,12 @@ export default function ScopeMatrix() {
               <button
                 key={preset.id}
                 onClick={() => setActivePreset(preset.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-all cursor-pointer ${colorMap[preset.color]}`}
+                className={`flex items-center gap-2 px-3 md:px-4 py-2.5 rounded-lg border transition-all cursor-pointer min-h-[44px] ${colorMap[preset.color]}`}
               >
                 {preset.icon}
-                <div className="text-left">
+                <div className="text-left min-w-0">
                   <div className="text-sm font-medium">{preset.name}</div>
-                  <div className="text-[11px] text-white/40">{preset.description}</div>
+                  <div className="text-[11px] text-white/40 hidden sm:block">{preset.description}</div>
                 </div>
               </button>
             );
@@ -406,7 +406,7 @@ export default function ScopeMatrix() {
 
       {/* ── Authorization matrix ── */}
       <div className="rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden">
-        <div className="p-5 border-b border-white/10">
+        <div className="p-4 md:p-5 border-b border-white/10">
           <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Authorization Matrix</h2>
           <p className="text-xs text-white/40 mt-1">
             Each cell shows whether an agent can invoke a tool. Hover for details.
@@ -467,7 +467,7 @@ export default function ScopeMatrix() {
 
       {/* ── Tool details table ── */}
       <div className="rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden">
-        <div className="p-5 border-b border-white/10">
+        <div className="p-4 md:p-5 border-b border-white/10">
           <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Tool Details</h2>
           <p className="text-xs text-white/40 mt-1">
             Risk level, required scopes, credential lifecycle, and OAuth connection for each tool
@@ -494,9 +494,9 @@ export default function ScopeMatrix() {
       </div>
 
       {/* ── Legend ── */}
-      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-5">
-        <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Legend</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 md:p-5">
+        <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-3 md:mb-4">Legend</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
             <span className="text-lg leading-none mt-0.5 select-none">&#9989;</span>
             <div>

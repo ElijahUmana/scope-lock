@@ -16,6 +16,8 @@ import { gmailDraftTool, gmailSearchTool } from '@/lib/tools/gmail';
 import { getCalendarEventsTool } from '@/lib/tools/google-calender';
 import { getTasksTool, createTasksTool } from '@/lib/tools/google-tasks';
 import { shopOnlineTool } from '@/lib/tools/shop-online';
+import { listRepositories } from '@/lib/tools/list-gh-repos';
+import { listGitHubEvents } from '@/lib/tools/list-gh-events';
 import { logToolCall } from '@/lib/audit';
 import { recordScopeRequest } from '@/lib/actions/audit';
 import { evaluatePolicy } from '@/lib/policy-engine';
@@ -95,6 +97,8 @@ const TOOL_SCOPE_MAP: Record<string, { scopes: string[]; connection: string; cre
   createTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
   getUserInfoTool: { scopes: ['openid', 'profile'], connection: 'auth0', credentialsContext: 'thread' },
   shopOnlineTool: { scopes: ['product:buy'], connection: 'ciba', credentialsContext: 'tool-call' },
+  listRepositories: { scopes: ['repo'], connection: 'github', credentialsContext: 'tool-call' },
+  listGitHubEvents: { scopes: ['events'], connection: 'github', credentialsContext: 'tool-call' },
 };
 
 const UNKNOWN_META = { scopes: [] as string[], connection: 'unknown', credentialsContext: 'unknown' };
@@ -109,6 +113,8 @@ const ALL_TOOLS: Record<string, any> = {
   getTasksTool,
   createTasksTool,
   shopOnlineTool,
+  listRepositories,
+  listGitHubEvents,
 };
 
 const ALL_TOOL_NAMES = Object.keys(ALL_TOOLS);

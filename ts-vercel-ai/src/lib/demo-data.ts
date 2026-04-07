@@ -8,7 +8,6 @@ import { logToolCall, getAuditLog } from './audit';
 import { recordScopeRequest } from './actions/audit';
 import {
   createDelegation,
-  getDelegationChain,
   startAgentSession,
 } from './agent-orchestrator';
 

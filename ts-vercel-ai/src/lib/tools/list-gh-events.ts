@@ -1,5 +1,4 @@
 import { Octokit, RequestError } from 'octokit';
-import { TokenVaultError } from '@auth0/ai/interrupts';
 import { getAccessToken, withGitHubConnection } from '@/lib/auth0-ai';
 import { tool } from 'ai';
 import { z } from 'zod';
@@ -39,10 +38,25 @@ export const listGitHubEvents = withGitHubConnection(
       page: z.number().min(1).default(1).optional().describe('Page number for pagination (default: 1)'),
     }),
     execute: async ({ per_page = 30, page = 1 }) => {
-      // Get the access token from Auth0 AI
-      const accessToken = await getAccessToken();
+      let accessToken: string;
+      try {
+        accessToken = await getAccessToken();
+      } catch (error: any) {
+        console.log('GitHub Token Vault connection error:', error);
+        const status = error?.status ?? error?.response?.status;
+        if (status === 404 || (error?.message && /404|not found/i.test(error.message))) {
+          return {
+            error: true,
+            message:
+              'GitHub not connected. Go to your Profile page to connect your GitHub account. Make sure the GitHub connection in Auth0 is configured with Purpose set to "Connected Accounts for Token Vault".',
+          };
+        }
+        return {
+          error: true,
+          message: `Failed to connect to GitHub: ${error?.message ?? 'Unknown error'}. Go to your Profile page to connect your GitHub account.`,
+        };
+      }
 
-      // GitHub SDK
       try {
         const octokit = new Octokit({
           auth: accessToken,
@@ -83,22 +97,36 @@ export const listGitHubEvents = withGitHubConnection(
           per_page,
         };
       } catch (error) {
-        console.log('Error', error);
+        console.log('GitHub API error:', error);
 
         if (error instanceof RequestError) {
           if (error.status === 401) {
-            throw new TokenVaultError(
-              `Authorization required to access your GitHub events. Please connect your GitHub account.`,
-            );
+            return {
+              error: true,
+              message:
+                'GitHub authorization expired or revoked. Go to your Profile page to reconnect your GitHub account.',
+            };
           }
           if (error.status === 403) {
-            throw new TokenVaultError(
-              `Access forbidden. Your GitHub token may not have the required permissions to access events.`,
-            );
+            return {
+              error: true,
+              message:
+                'Access forbidden. Your GitHub token may not have the required permissions to access events.',
+            };
+          }
+          if (error.status === 404) {
+            return {
+              error: true,
+              message:
+                'GitHub not connected. Go to your Profile page to connect your GitHub account.',
+            };
           }
         }
 
-        throw error;
+        return {
+          error: true,
+          message: `GitHub API error: ${(error as Error)?.message ?? 'Unknown error'}. Try reconnecting your GitHub account from the Profile page.`,
+        };
       }
     },
   }),

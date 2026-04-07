@@ -14,6 +14,8 @@ describe('Agents', () => {
       expect(reader.tools).toContain('getCalendarEventsTool');
       expect(reader.tools).toContain('getTasksTool');
       expect(reader.tools).toContain('getUserInfoTool');
+      expect(reader.tools).toContain('listRepositories');
+      expect(reader.tools).toContain('listGitHubEvents');
     });
 
     it('does NOT have gmailDraftTool', () => {
@@ -148,6 +150,8 @@ describe('Agents', () => {
       expect(tools).toContain('getCalendarEventsTool');
       expect(tools).toContain('getTasksTool');
       expect(tools).toContain('getUserInfoTool');
+      expect(tools).toContain('listRepositories');
+      expect(tools).toContain('listGitHubEvents');
     });
 
     it('returns write tools for writer', () => {

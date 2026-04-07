@@ -20,14 +20,16 @@ describe('Scope Presets + Agent Integration', () => {
   describe('Reader agent + Privacy preset', () => {
     it('returns intersection of their tools', () => {
       const effective = getEffectiveTools('reader', 'privacy');
-      // Reader has: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool
-      // Privacy has: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool
-      // Intersection = all 4
+      // Reader has: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool, listRepositories, listGitHubEvents
+      // Privacy has: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool, listRepositories, listGitHubEvents
+      // Intersection = all 6
       expect(effective).toContain('gmailSearchTool');
       expect(effective).toContain('getCalendarEventsTool');
       expect(effective).toContain('getTasksTool');
       expect(effective).toContain('getUserInfoTool');
-      expect(effective).toHaveLength(4);
+      expect(effective).toContain('listRepositories');
+      expect(effective).toContain('listGitHubEvents');
+      expect(effective).toHaveLength(6);
     });
   });
 
@@ -94,7 +96,16 @@ describe('Scope Presets + Agent Integration', () => {
       expect(effective).toContain('getCalendarEventsTool');
       expect(effective).toContain('getTasksTool');
       expect(effective).toContain('getUserInfoTool');
-      expect(effective).toHaveLength(4);
+      expect(effective).toContain('listRepositories');
+      expect(effective).toContain('listGitHubEvents');
+      expect(effective).toHaveLength(6);
+    });
+  });
+
+  describe('Writer agent + Lockdown preset', () => {
+    it('returns 0 tools', () => {
+      const effective = getEffectiveTools('writer', 'lockdown');
+      expect(effective).toHaveLength(0);
     });
   });
 });

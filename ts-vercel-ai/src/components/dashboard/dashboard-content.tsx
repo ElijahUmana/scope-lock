@@ -403,6 +403,35 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showDemoBanner, setShowDemoBanner] = useState(false);
 
+  // --- localStorage cache helpers ---
+  const CACHE_KEY_AUDIT = 'scope-lock-audit';
+  const CACHE_KEY_REQUESTS = 'scope-lock-requests';
+
+  const saveCacheToLocalStorage = useCallback((entries: AuditEntry[], requests: ScopeRequest[]) => {
+    try {
+      localStorage.setItem(CACHE_KEY_AUDIT, JSON.stringify(entries));
+      localStorage.setItem(CACHE_KEY_REQUESTS, JSON.stringify(requests));
+    } catch {
+      // Storage full or unavailable — ignore
+    }
+  }, []);
+
+  const loadCacheFromLocalStorage = useCallback((): { entries: AuditEntry[]; requests: ScopeRequest[] } | null => {
+    try {
+      const rawEntries = localStorage.getItem(CACHE_KEY_AUDIT);
+      const rawRequests = localStorage.getItem(CACHE_KEY_REQUESTS);
+      if (rawEntries && rawRequests) {
+        return {
+          entries: JSON.parse(rawEntries),
+          requests: JSON.parse(rawRequests),
+        };
+      }
+    } catch {
+      // Corrupt or unavailable — ignore
+    }
+    return null;
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       const [accounts, entries, requests] = await Promise.all([
@@ -413,6 +442,8 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
       setConnectedAccounts(accounts);
       setAuditEntries(entries);
       setScopeRequests(requests);
+      // Persist to localStorage so data survives cold starts
+      saveCacheToLocalStorage(entries, requests);
       return { entries, requests };
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -421,9 +452,25 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [saveCacheToLocalStorage]);
 
   useEffect(() => {
+    // Immediately hydrate from localStorage cache so the dashboard
+    // shows data before the server fetch completes
+    const cached = loadCacheFromLocalStorage();
+    if (cached && cached.entries.length > 0) {
+      setAuditEntries(cached.entries);
+      setScopeRequests(cached.requests);
+      const hasDemo = cached.entries.some((e: AuditEntry) =>
+        e.toolName.startsWith('[demo] ')
+      );
+      if (hasDemo) {
+        setShowDemoBanner(true);
+      }
+      // Stop showing the loading spinner since we have cached data
+      setLoading(false);
+    }
+
     async function initDashboard() {
       const result = await loadData();
 
@@ -462,6 +509,8 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
         ]);
         setAuditEntries(entries);
         setScopeRequests(requests);
+        // Update localStorage cache on each poll
+        saveCacheToLocalStorage(entries, requests);
 
         // Hide demo banner once real (non-demo) data appears
         if (entries.length > 0 && !entries.some((e) => e.toolName.startsWith('[demo] '))) {
@@ -472,7 +521,7 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
       }
     }, 10000);
     return () => clearInterval(interval);
-  }, [loadData]);
+  }, [loadData, loadCacheFromLocalStorage, saveCacheToLocalStorage]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -569,9 +618,9 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
       )}
 
       {/* Top row: Security Score + Active Scopes */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Security Score Panel */}
-        <div className="lg:col-span-1 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
+        <div className="lg:col-span-1 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-4 md:p-6">
           <div className="flex items-center gap-2 mb-6">
             <Shield className="h-5 w-5 text-white/80" />
             <h2 className="text-lg font-semibold text-white">Security Score</h2>
@@ -641,7 +690,7 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
         </div>
 
         {/* Active Scopes Panel */}
-        <div className="lg:col-span-2 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
+        <div className="lg:col-span-2 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-4 md:p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <Lock className="h-5 w-5 text-white/80" />
@@ -698,7 +747,7 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
                       <button
                         onClick={() => handleRevoke(account.id)}
                         disabled={deletingId === account.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-md border border-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-md border border-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
                       >
                         {deletingId === account.id ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
@@ -780,7 +829,7 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
                       <button
                         onClick={() => handleRevoke(account.id)}
                         disabled={deletingId === account.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-md border border-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-md border border-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
                       >
                         {deletingId === account.id ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
@@ -821,23 +870,23 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
       </div>
 
       {/* How Scope Lock Works (Scope Topology) */}
-      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
+      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-4 md:p-6">
         <div className="flex items-center gap-2 mb-2">
-          <Network className="h-5 w-5 text-white/80" />
-          <h2 className="text-lg font-semibold text-white">
+          <Network className="h-5 w-5 text-white/80 shrink-0" />
+          <h2 className="text-base md:text-lg font-semibold text-white">
             How Scope Lock Works
           </h2>
         </div>
-        <p className="text-sm text-white/50 mb-6">
+        <p className="text-xs md:text-sm text-white/50 mb-4 md:mb-6">
           Each agent operates within strict permission boundaries. Scope Lock ensures agents only access what they need through the services shown below.
         </p>
         <ScopeTopology />
       </div>
 
       {/* Bottom row: Audit Trail + Scope Request History */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Audit Trail */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-4 md:p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-white/80" />
@@ -998,7 +1047,7 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
         </div>
 
         {/* Scope Request History */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-4 md:p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-white/80" />
@@ -1129,22 +1178,22 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
       <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="w-full flex items-center justify-between p-6 text-left hover:bg-white/5 transition-colors rounded-lg"
+          className="w-full flex items-center justify-between p-4 md:p-6 text-left hover:bg-white/5 transition-colors rounded-lg min-h-[44px]"
         >
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-white/80" />
-            <h2 className="text-lg font-semibold text-white">Advanced Panels</h2>
-            <span className="text-xs text-white/40 ml-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <BookOpen className="h-5 w-5 text-white/80 shrink-0" />
+            <h2 className="text-base md:text-lg font-semibold text-white">Advanced Panels</h2>
+            <span className="text-xs text-white/40 ml-2 hidden sm:inline truncate">
               Policy Rules, Token Inspector, Scope Analytics, Delegation Chain, and more
             </span>
           </div>
-          <ChevronDown className={`h-5 w-5 text-white/50 transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`h-5 w-5 text-white/50 transition-transform duration-200 shrink-0 ${showAdvanced ? 'rotate-180' : ''}`} />
         </button>
 
         {showAdvanced && (
-          <div className="px-6 pb-6 space-y-6">
+          <div className="px-4 pb-4 md:px-6 md:pb-6 space-y-4 md:space-y-6">
             {/* Policy Rules */}
-            <div className="bg-white/5 rounded-lg border border-white/10 p-6">
+            <div className="bg-white/5 rounded-lg border border-white/10 p-4 md:p-6">
               <div className="flex items-center gap-2 mb-6">
                 <Shield className="h-5 w-5 text-white/80" />
                 <h2 className="text-lg font-semibold text-white">Policy Rules</h2>
@@ -1214,7 +1263,7 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
             <ScopeAnalytics entries={auditEntries} />
 
             {/* Delegation Chain */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-6">
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 p-4 md:p-6">
               <div className="flex items-center gap-2 mb-6">
                 <GitBranch className="h-5 w-5 text-white/80" />
                 <h2 className="text-lg font-semibold text-white">Delegation Chain</h2>
@@ -1223,7 +1272,7 @@ export default function DashboardContent({ user }: { user: KeyValueMap }) {
             </div>
 
             {/* Consent History Timeline */}
-            <div className="bg-white/5 rounded-lg border border-white/10 p-6">
+            <div className="bg-white/5 rounded-lg border border-white/10 p-4 md:p-6">
               <div className="flex items-center gap-2 mb-6">
                 <Clock className="h-5 w-5 text-white/80" />
                 <h2 className="text-lg font-semibold text-white">Consent History Timeline</h2>
