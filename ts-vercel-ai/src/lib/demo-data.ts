@@ -86,28 +86,6 @@ export async function seedDemoData(userId: string): Promise<boolean> {
       riskLevel: 'GREEN',
       minutesAgo: 44,
     },
-    // GREEN: Slack channel listing
-    {
-      toolName: `${DEMO_TAG}listSlackChannels`,
-      scopes: ['channels:read', 'groups:read'],
-      success: true,
-      duration: 231,
-      connection: 'sign-in-with-slack',
-      credentialsContext: 'token-vault',
-      riskLevel: 'GREEN',
-      minutesAgo: 40,
-    },
-    // GREEN: GitHub repos
-    {
-      toolName: `${DEMO_TAG}listRepositories`,
-      scopes: ['repo:read'],
-      success: true,
-      duration: 412,
-      connection: 'github',
-      credentialsContext: 'token-vault',
-      riskLevel: 'GREEN',
-      minutesAgo: 36,
-    },
     // GREEN: Gmail read again
     {
       toolName: `${DEMO_TAG}gmailSearchTool`,
@@ -129,17 +107,6 @@ export async function seedDemoData(userId: string): Promise<boolean> {
       credentialsContext: 'token-vault',
       riskLevel: 'GREEN',
       minutesAgo: 28,
-    },
-    // GREEN: GitHub events
-    {
-      toolName: `${DEMO_TAG}listGitHubEvents`,
-      scopes: ['repo:read'],
-      success: true,
-      duration: 389,
-      connection: 'github',
-      credentialsContext: 'token-vault',
-      riskLevel: 'GREEN',
-      minutesAgo: 24,
     },
     // AMBER: Draft creation (write scope, escalation)
     {
@@ -173,28 +140,6 @@ export async function seedDemoData(userId: string): Promise<boolean> {
       credentialsContext: 'token-vault',
       riskLevel: 'AMBER',
       minutesAgo: 12,
-    },
-    // GREEN: Slack channels read
-    {
-      toolName: `${DEMO_TAG}listSlackChannels`,
-      scopes: ['channels:read'],
-      success: true,
-      duration: 198,
-      connection: 'sign-in-with-slack',
-      credentialsContext: 'token-vault',
-      riskLevel: 'GREEN',
-      minutesAgo: 8,
-    },
-    // RED: Shop attempt -- DENIED
-    {
-      toolName: `${DEMO_TAG}shopOnlineTool`,
-      scopes: ['product:buy'],
-      success: false,
-      duration: 45,
-      connection: 'ciba',
-      credentialsContext: 'step-up-auth',
-      riskLevel: 'RED',
-      minutesAgo: 5,
     },
     // GREEN: User info lookup
     {
@@ -255,32 +200,11 @@ export async function seedDemoData(userId: string): Promise<boolean> {
       grantedMinutesAgo: 45,
     },
     {
-      connection: 'sign-in-with-slack',
-      scopes: ['channels:read', 'groups:read'],
-      status: 'granted',
-      minutesAgo: 41,
-      grantedMinutesAgo: 41,
-    },
-    {
-      connection: 'github',
-      scopes: ['repo:read'],
-      status: 'granted',
-      minutesAgo: 37,
-      grantedMinutesAgo: 37,
-    },
-    {
       connection: 'google-oauth2',
       scopes: ['https://www.googleapis.com/auth/gmail.compose'],
       status: 'granted',
       minutesAgo: 21,
       grantedMinutesAgo: 21,
-    },
-    {
-      connection: 'ciba',
-      scopes: ['product:buy'],
-      status: 'denied',
-      minutesAgo: 6,
-      grantedMinutesAgo: null,
     },
   ];
 
@@ -307,15 +231,6 @@ export async function seedDemoData(userId: string): Promise<boolean> {
     'writer',
     ['gmailDraftTool', 'createTasksTool'],
     `${DEMO_TAG}User requested a draft reply — escalating to Writer for compose access`,
-    userId,
-  );
-
-  // Writer -> Commerce escalation (denied shop attempt)
-  createDelegation(
-    'writer',
-    'commerce',
-    ['shopOnlineTool'],
-    `${DEMO_TAG}User asked to purchase an item — escalating to Commerce for buy access`,
     userId,
   );
 

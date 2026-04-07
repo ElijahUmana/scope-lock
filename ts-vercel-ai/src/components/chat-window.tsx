@@ -30,26 +30,37 @@ const TOOL_LABEL_MAP: Record<string, { label: string; icon: string }> = {
 };
 
 // Suggested actions per agent, contextual to what each agent can do
-const AGENT_SUGGESTIONS: Record<string, Array<{ icon: string; label: string; prompt: string }>> = {
+// `prompt` is the display text shown in the welcome message.
+// `submitPrompt` is the actual message sent when the quick action card is clicked.
+interface AgentSuggestion {
+  icon: string;
+  label: string;
+  description: string;
+  prompt: string;
+  submitPrompt: string;
+}
+
+const AGENT_SUGGESTIONS: Record<string, AgentSuggestion[]> = {
   progressive: [
-    { icon: '📧', label: 'Triage your inbox', prompt: "'Triage my inbox'" },
-    { icon: '✏️', label: 'Read and reply', prompt: "'Show my latest emails, then draft a reply to the most urgent one'" },
-    { icon: '📅', label: 'Full daily briefing', prompt: "'Give me a morning briefing: emails, calendar, and tasks'" },
+    { icon: '📧', label: 'Triage Inbox', description: 'Categorize and prioritize', prompt: "'Triage my inbox'", submitPrompt: 'Triage my inbox' },
+    { icon: '📅', label: "Today's Schedule", description: 'Check calendar for today', prompt: "'Give me a morning briefing: emails, calendar, and tasks'", submitPrompt: "What's on my calendar today?" },
+    { icon: '✅', label: 'My Tasks', description: 'List pending tasks', prompt: "'List my current tasks'", submitPrompt: 'List my current tasks' },
+    { icon: '✏️', label: 'Draft Email', description: 'Compose a new message', prompt: "'Show my latest emails, then draft a reply to the most urgent one'", submitPrompt: 'Draft an email to ' },
   ],
   reader: [
-    { icon: '📧', label: 'Triage your inbox', prompt: "'Show me my recent emails'" },
-    { icon: '📅', label: 'Check your schedule', prompt: "'What's on my calendar today?'" },
-    { icon: '✅', label: 'Review tasks', prompt: "'List my current tasks'" },
+    { icon: '📧', label: 'Triage Inbox', description: 'Categorize and prioritize', prompt: "'Show me my recent emails'", submitPrompt: 'Triage my inbox' },
+    { icon: '📅', label: "Today's Schedule", description: 'Check calendar for today', prompt: "'What's on my calendar today?'", submitPrompt: "What's on my calendar today?" },
+    { icon: '✅', label: 'My Tasks', description: 'List pending tasks', prompt: "'List my current tasks'", submitPrompt: 'List my current tasks' },
   ],
   writer: [
-    { icon: '✏️', label: 'Draft an email', prompt: "'Draft a reply to the last email from my manager'" },
-    { icon: '➕', label: 'Create a task', prompt: "'Add a task to follow up on the Q2 report'" },
-    { icon: '📝', label: 'Compose a message', prompt: "'Write a professional out-of-office reply'" },
+    { icon: '✏️', label: 'Draft Email', description: 'Reply to latest message', prompt: "'Draft a reply to the last email from my manager'", submitPrompt: 'Draft a reply to the last email from my manager' },
+    { icon: '➕', label: 'Create Task', description: 'Add a new to-do item', prompt: "'Add a task to follow up on the Q2 report'", submitPrompt: 'Add a task to follow up on the Q2 report' },
+    { icon: '📝', label: 'Compose Message', description: 'Write from scratch', prompt: "'Write a professional out-of-office reply'", submitPrompt: 'Write a professional out-of-office reply' },
   ],
   commerce: [
-    { icon: '🛒', label: 'Browse products', prompt: "'Search for wireless headphones under $100'" },
-    { icon: '💳', label: 'Make a purchase', prompt: "'Buy the top-rated USB-C hub'" },
-    { icon: '🔍', label: 'Compare options', prompt: "'Compare the top 3 portable chargers'" },
+    { icon: '🛒', label: 'Browse Products', description: 'Search for items', prompt: "'Search for wireless headphones under $100'", submitPrompt: 'Search for wireless headphones under $100' },
+    { icon: '💳', label: 'Make a Purchase', description: 'Buy a specific item', prompt: "'Buy the top-rated USB-C hub'", submitPrompt: 'Buy the top-rated USB-C hub' },
+    { icon: '🔍', label: 'Compare Options', description: 'Side-by-side comparison', prompt: "'Compare the top 3 portable chargers'", submitPrompt: 'Compare the top 3 portable chargers' },
   ],
 };
 

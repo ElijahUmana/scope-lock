@@ -51,28 +51,16 @@ function ModeToggle({ strictMode, onToggle }: { strictMode: boolean; onToggle: (
     <button
       type="button"
       onClick={onToggle}
-      className={cn(
-        'flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all cursor-pointer min-h-[44px] w-full',
-        strictMode
-          ? 'border-amber-500/40 bg-amber-500/10'
-          : 'border-cyan-500/40 bg-cyan-500/10',
-      )}
+      className="inline-flex items-center gap-1.5 text-[11px] text-white/30 hover:text-white/50 transition-colors cursor-pointer py-1"
     >
       {strictMode ? (
-        <ToggleRight className="w-5 h-5 text-amber-400 shrink-0" />
+        <ToggleRight className="w-3.5 h-3.5 shrink-0" />
       ) : (
-        <ToggleLeft className="w-5 h-5 text-cyan-400 shrink-0" />
+        <ToggleLeft className="w-3.5 h-3.5 shrink-0" />
       )}
-      <div className="flex flex-col text-left min-w-0">
-        <span className={cn('text-xs font-medium', strictMode ? 'text-amber-300' : 'text-cyan-300')}>
-          {strictMode ? 'Strict Isolation Mode' : 'Progressive Mode'}
-        </span>
-        <span className="text-[10px] text-white/40 hidden sm:block">
-          {strictMode
-            ? 'Separate agents with hard credential boundaries'
-            : 'Unified agent, scopes requested progressively as needed'}
-        </span>
-      </div>
+      <span>
+        {strictMode ? 'Switch to Progressive Mode' : 'Switch to Strict Isolation'}
+      </span>
     </button>
   );
 }

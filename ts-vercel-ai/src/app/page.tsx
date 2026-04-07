@@ -14,7 +14,7 @@ const FEATURES = [
   { icon: FlaskConical, title: 'Security Sandbox', description: '5 attack simulations with 14 automated assertions. Prove the security model works under adversarial conditions.', color: 'border-red-500/30 bg-red-500/10' },
 ];
 
-const STEPS = ['Zero Permissions', 'Select Agent', 'Request Action', 'Explain Scope', 'User Approves', 'Execute', 'Audit & Log'];
+const STEPS = ['Sign In', 'Zero Permissions', 'Ask the Agent', 'Scope Requested', 'You Approve', 'Tool Executes', 'Audit Logged'];
 
 export default async function Home() {
   const session = await auth0.getSession();
@@ -41,7 +41,7 @@ export default async function Home() {
             <Button asChild variant="outline" size="lg">
               <a href="/auth/login?screen_hint=signup" className="flex items-center justify-center gap-2 px-6 min-h-[44px]">
                 <BarChart3 className="w-4 h-4" />
-                View Dashboard
+                Sign Up
               </a>
             </Button>
           </div>
@@ -88,8 +88,8 @@ export default async function Home() {
 
   const InfoCard = (
     <GuideInfoBox>
-      <p className="text-sm text-white/50">
-        Email Triage Agent &mdash; Say &quot;triage my inbox&quot; to begin.
+      <p className="text-sm text-white/70 font-medium">
+        Type <span className="text-green-400">&quot;triage my inbox&quot;</span> below to see progressive authorization in action.
       </p>
     </GuideInfoBox>
   );
