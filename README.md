@@ -114,7 +114,7 @@ Scope Lock offers two modes, toggled from the chat interface:
 | **Progressive Mode** | Yes | A single unified agent with access to ALL 8 tools. Scopes are earned progressively through Token Vault interrupts as the conversation naturally requires them. The agent never tells the user to "switch agents" -- it requests each scope escalation inline. After triaging emails, it suggests cross-service follow-ups (check calendar, create task, draft reply) that each require a new scope grant. |
 | **Strict Isolation Mode** | No (toggle) | Two separate agents (Reader + Writer) with hard credential boundaries. Each agent can ONLY access its authorized tools. Demonstrates real tool-level enforcement, not prompt engineering. |
 
-**Progressive Mode is the hero experience.** Judges see zero-trust start, progressive scope expansion, branded consent cards with data access details and TTL display, quick action buttons, cross-service follow-up suggestions, and the full email triage workflow -- all in a single conversation. Strict Isolation Mode is the advanced toggle that demonstrates multi-agent credential isolation architecture.
+**Progressive Mode is the default experience.** Users start with zero-trust, earn scopes progressively through branded consent cards (with data access details and TTL display), use quick action buttons, and see cross-service follow-up suggestions -- all in a single conversation. Strict Isolation Mode is an advanced toggle that demonstrates multi-agent credential isolation.
 
 ---
 
