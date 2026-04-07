@@ -11,7 +11,7 @@ const FEATURES = [
   { icon: Lock, title: 'Scope Presets', description: 'Lockdown (zero tools), Privacy (read-only), Productivity (full access). User controls what the agent can do.', color: 'border-purple-500/30 bg-purple-500/10' },
   { icon: Eye, title: 'Real-Time Audit Trail', description: 'SHA-256 hash-chained audit log. Every API call recorded with scopes, risk level, and credential context.', color: 'border-emerald-500/30 bg-emerald-500/10' },
   { icon: ShieldCheck, title: 'Progressive Authorization', description: 'Zero-trust start. Agent earns each scope individually, explaining what it needs and why.', color: 'border-cyan-500/30 bg-cyan-500/10' },
-  { icon: FlaskConical, title: 'Security Sandbox', description: '5 attack simulations with 14 automated assertions. Prove the security model works under adversarial conditions.', color: 'border-red-500/30 bg-red-500/10' },
+  { icon: FlaskConical, title: 'Security Sandbox', description: 'Automated security assertions across isolation, policy, credential, and audit categories. Prove the security model works under adversarial conditions.', color: 'border-red-500/30 bg-red-500/10' },
 ];
 
 const STEPS = ['Sign In', 'Zero Permissions', 'Ask the Agent', 'Scope Requested', 'You Approve', 'Tool Executes', 'Audit Logged'];

@@ -143,3 +143,82 @@ export const createTasksTool = withTasks(
     },
   }),
 );
+
+export const deleteTaskTool = withTasks(
+  tool({
+    description: `Delete a task from the user's Google Tasks by its ID`,
+    inputSchema: z.object({
+      taskId: z.string().describe('The ID of the task to delete. Get this from the getTasksTool results.'),
+    }),
+    execute: async ({ taskId }) => {
+      const accessToken = await getAccessToken();
+
+      try {
+        const tasksApi = google.tasks('v1');
+        const auth = new google.auth.OAuth2();
+        auth.setCredentials({ access_token: accessToken });
+
+        await tasksApi.tasks.delete({
+          auth,
+          tasklist: '@default',
+          task: taskId,
+        });
+
+        return { success: true, message: `Task ${taskId} deleted successfully.` };
+      } catch (error) {
+        if (error instanceof GaxiosError) {
+          if (error.status === 401) {
+            throw new TokenVaultError(`Authorization required to access the Token Vault connection.`);
+          }
+          if (error.status === 404) {
+            return { error: true, message: `Task not found. It may have already been deleted.` };
+          }
+          if (error.status === 403) {
+            const msg = (error as any).message || '';
+            return { error: true, message: `Tasks access forbidden: ${msg}` };
+          }
+        }
+        return { error: true, message: `Failed to delete task: ${(error as Error)?.message ?? 'Unknown error'}` };
+      }
+    },
+  }),
+);
+
+export const completeTaskTool = withTasks(
+  tool({
+    description: `Mark a task as completed in the user's Google Tasks`,
+    inputSchema: z.object({
+      taskId: z.string().describe('The ID of the task to complete. Get this from the getTasksTool results.'),
+    }),
+    execute: async ({ taskId }) => {
+      const accessToken = await getAccessToken();
+
+      try {
+        const tasksApi = google.tasks('v1');
+        const auth = new google.auth.OAuth2();
+        auth.setCredentials({ access_token: accessToken });
+
+        const response = await tasksApi.tasks.patch({
+          auth,
+          tasklist: '@default',
+          task: taskId,
+          requestBody: { status: 'completed' },
+        });
+
+        return {
+          success: true,
+          title: response.data.title,
+          status: response.data.status,
+          message: `Task "${response.data.title}" marked as completed.`,
+        };
+      } catch (error) {
+        if (error instanceof GaxiosError) {
+          if (error.status === 401) {
+            throw new TokenVaultError(`Authorization required to access the Token Vault connection.`);
+          }
+        }
+        return { error: true, message: `Failed to complete task: ${(error as Error)?.message ?? 'Unknown error'}` };
+      }
+    },
+  }),
+);

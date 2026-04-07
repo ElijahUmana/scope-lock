@@ -69,13 +69,6 @@ const AGENTS = [
     description: 'Creates drafts and tasks. Each write uses isolated credentials.',
     tools: ['Gmail Draft', 'Create Tasks'],
   },
-  {
-    icon: '\u{1F6D2}',
-    name: 'Commerce Agent',
-    risk: 'high' as const,
-    description: 'Handles purchases. Every action requires step-up authentication.',
-    tools: ['Shop Online'],
-  },
 ];
 
 const RISK_STYLES: Record<'low' | 'medium' | 'high', { border: string; bg: string; text: string; label: string }> = {

@@ -26,7 +26,6 @@ const TOOL_LABEL_MAP: Record<string, { label: string; icon: string }> = {
   getTasksTool: { label: 'Tasks', icon: '✅' },
   createTasksTool: { label: 'Create Task', icon: '➕' },
   getUserInfoTool: { label: 'User Info', icon: '👤' },
-  shopOnlineTool: { label: 'Shop Online', icon: '🛒' },
 };
 
 // Suggested actions per agent, contextual to what each agent can do
@@ -56,11 +55,6 @@ const AGENT_SUGGESTIONS: Record<string, AgentSuggestion[]> = {
     { icon: '✏️', label: 'Draft Email', description: 'Reply to latest message', prompt: "'Draft a reply to the last email from my manager'", submitPrompt: 'Draft a reply to the last email from my manager' },
     { icon: '➕', label: 'Create Task', description: 'Add a new to-do item', prompt: "'Add a task to follow up on the Q2 report'", submitPrompt: 'Add a task to follow up on the Q2 report' },
     { icon: '📝', label: 'Compose Message', description: 'Write from scratch', prompt: "'Write a professional out-of-office reply'", submitPrompt: 'Write a professional out-of-office reply' },
-  ],
-  commerce: [
-    { icon: '🛒', label: 'Browse Products', description: 'Search for items', prompt: "'Search for wireless headphones under $100'", submitPrompt: 'Search for wireless headphones under $100' },
-    { icon: '💳', label: 'Make a Purchase', description: 'Buy a specific item', prompt: "'Buy the top-rated USB-C hub'", submitPrompt: 'Buy the top-rated USB-C hub' },
-    { icon: '🔍', label: 'Compare Options', description: 'Side-by-side comparison', prompt: "'Compare the top 3 portable chargers'", submitPrompt: 'Compare the top 3 portable chargers' },
   ],
 };
 
@@ -150,9 +144,6 @@ const TOOL_SERVICE_MAP: Record<string, { service: string; icon: string; level: '
   getCalendarEventsTool: { service: 'Calendar', icon: '📅', level: 'read' },
   getTasksTool: { service: 'Tasks', icon: '✅', level: 'read' },
   createTasksTool: { service: 'Tasks', icon: '➕', level: 'write' },
-  listRepositories: { service: 'GitHub', icon: '📦', level: 'read' },
-  listGitHubEvents: { service: 'GitHub', icon: '⚡', level: 'read' },
-  listSlackChannels: { service: 'Slack', icon: '💬', level: 'read' },
 };
 
 function ActiveScopesBar({ messages }: { messages: UIMessage[] }) {

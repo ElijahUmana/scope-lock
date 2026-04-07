@@ -34,22 +34,9 @@ export const AGENT_PROFILES: AgentProfile[] = [
     riskLevel: 'medium',
     credentialsContext: 'tool-call',
     systemPromptAddition:
-      'You are the WRITER agent. You can create Gmail drafts and Google Tasks. Each write operation uses isolated, per-tool-call credentials. You CANNOT read emails, view calendars, or make purchases. If the user asks to read data or shop, explain that they need to switch to the Reader or Commerce agent.',
-    canDelegateTo: ['commerce'],
-    cannotAccess: ['gmailSearchTool', 'getCalendarEventsTool', 'getTasksTool', 'shopOnlineTool', 'listRepositories', 'listGitHubEvents'],
-  },
-  {
-    id: 'commerce',
-    name: 'Commerce Agent',
-    description: 'I handle purchases and financial transactions. Every action requires explicit step-up authentication via mobile push.',
-    icon: '🛒',
-    tools: ['shopOnlineTool'],
-    riskLevel: 'high',
-    credentialsContext: 'tool-call',
-    systemPromptAddition:
-      'You are the COMMERCE agent. You handle purchases and financial transactions via the shopOnlineTool. Every action requires explicit step-up authentication via CIBA mobile push notification. You CANNOT read emails, view calendars, create drafts, or manage tasks. If the user asks for non-commerce actions, explain that they need to switch to the Reader or Writer agent.',
+      'You are the WRITER agent. You can create Gmail drafts and Google Tasks. Each write operation uses isolated, per-tool-call credentials. You CANNOT read emails or view calendars. If the user asks to read data, explain that they need to switch to the Reader agent.',
     canDelegateTo: [],
-    cannotAccess: ['gmailSearchTool', 'gmailDraftTool', 'getCalendarEventsTool', 'getTasksTool', 'createTasksTool', 'listRepositories', 'listGitHubEvents'],
+    cannotAccess: ['gmailSearchTool', 'getCalendarEventsTool', 'getTasksTool'],
   },
 ];
 

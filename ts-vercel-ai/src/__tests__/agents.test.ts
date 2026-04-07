@@ -14,8 +14,6 @@ describe('Agents', () => {
       expect(reader.tools).toContain('getCalendarEventsTool');
       expect(reader.tools).toContain('getTasksTool');
       expect(reader.tools).toContain('getUserInfoTool');
-      expect(reader.tools).toContain('listRepositories');
-      expect(reader.tools).toContain('listGitHubEvents');
     });
 
     it('does NOT have gmailDraftTool', () => {
@@ -80,41 +78,9 @@ describe('Agents', () => {
   });
 
   describe('Commerce agent', () => {
-    it('exists in the profiles list', () => {
+    it('does not exist (removed)', () => {
       const commerce = getAgentProfile('commerce');
-      expect(commerce).toBeDefined();
-    });
-
-    it('has only shopOnlineTool', () => {
-      const commerce = getAgentProfile('commerce')!;
-      expect(commerce.tools).toEqual(['shopOnlineTool']);
-    });
-
-    it('does NOT have gmailSearchTool', () => {
-      const commerce = getAgentProfile('commerce')!;
-      expect(commerce.tools).not.toContain('gmailSearchTool');
-    });
-
-    it('does NOT have gmailDraftTool', () => {
-      const commerce = getAgentProfile('commerce')!;
-      expect(commerce.tools).not.toContain('gmailDraftTool');
-    });
-
-    it('does NOT have any read tools', () => {
-      const commerce = getAgentProfile('commerce')!;
-      expect(commerce.tools).not.toContain('getCalendarEventsTool');
-      expect(commerce.tools).not.toContain('getTasksTool');
-      expect(commerce.tools).not.toContain('getUserInfoTool');
-    });
-
-    it('has high risk level', () => {
-      const commerce = getAgentProfile('commerce')!;
-      expect(commerce.riskLevel).toBe('high');
-    });
-
-    it('uses tool-call credentials context', () => {
-      const commerce = getAgentProfile('commerce')!;
-      expect(commerce.credentialsContext).toBe('tool-call');
+      expect(commerce).toBeUndefined();
     });
   });
 
@@ -131,10 +97,9 @@ describe('Agents', () => {
       expect(profile?.name).toBe('Writer Agent');
     });
 
-    it('returns correct profile for commerce', () => {
+    it('returns undefined for commerce (removed)', () => {
       const profile = getAgentProfile('commerce');
-      expect(profile?.id).toBe('commerce');
-      expect(profile?.name).toBe('Commerce Agent');
+      expect(profile).toBeUndefined();
     });
 
     it('returns undefined for invalid agent ID', () => {
@@ -150,8 +115,6 @@ describe('Agents', () => {
       expect(tools).toContain('getCalendarEventsTool');
       expect(tools).toContain('getTasksTool');
       expect(tools).toContain('getUserInfoTool');
-      expect(tools).toContain('listRepositories');
-      expect(tools).toContain('listGitHubEvents');
     });
 
     it('returns write tools for writer', () => {
@@ -160,9 +123,9 @@ describe('Agents', () => {
       expect(tools).toContain('createTasksTool');
     });
 
-    it('returns shopOnlineTool for commerce', () => {
+    it('returns empty array for commerce (removed)', () => {
       const tools = getToolsForAgent('commerce');
-      expect(tools).toEqual(['shopOnlineTool']);
+      expect(tools).toEqual([]);
     });
 
     it('returns empty array for invalid agent ID', () => {
@@ -172,24 +135,15 @@ describe('Agents', () => {
   });
 
   describe('agent isolation — cannotAccess declarations', () => {
-    it('reader cannotAccess lists all write/commerce tools', () => {
+    it('reader cannotAccess lists all write tools', () => {
       const reader = getAgentProfile('reader')!;
       expect(reader.cannotAccess).toContain('gmailDraftTool');
       expect(reader.cannotAccess).toContain('createTasksTool');
-      expect(reader.cannotAccess).toContain('shopOnlineTool');
     });
 
-    it('writer cannotAccess lists all read/commerce tools', () => {
+    it('writer cannotAccess lists all read tools', () => {
       const writer = getAgentProfile('writer')!;
       expect(writer.cannotAccess).toContain('gmailSearchTool');
-      expect(writer.cannotAccess).toContain('shopOnlineTool');
-    });
-
-    it('commerce cannotAccess lists all read/write tools', () => {
-      const commerce = getAgentProfile('commerce')!;
-      expect(commerce.cannotAccess).toContain('gmailSearchTool');
-      expect(commerce.cannotAccess).toContain('gmailDraftTool');
-      expect(commerce.cannotAccess).toContain('createTasksTool');
     });
 
     it('no agent has tools that overlap with its cannotAccess', () => {
@@ -207,24 +161,14 @@ describe('Agents', () => {
       expect(reader.canDelegateTo).toContain('writer');
     });
 
-    it('reader cannot delegate to commerce', () => {
-      const reader = getAgentProfile('reader')!;
-      expect(reader.canDelegateTo).not.toContain('commerce');
-    });
-
-    it('writer can delegate to commerce', () => {
-      const writer = getAgentProfile('writer')!;
-      expect(writer.canDelegateTo).toContain('commerce');
-    });
-
     it('writer cannot delegate to reader', () => {
       const writer = getAgentProfile('writer')!;
       expect(writer.canDelegateTo).not.toContain('reader');
     });
 
-    it('commerce cannot delegate to anyone', () => {
-      const commerce = getAgentProfile('commerce')!;
-      expect(commerce.canDelegateTo).toHaveLength(0);
+    it('writer cannot delegate to anyone', () => {
+      const writer = getAgentProfile('writer')!;
+      expect(writer.canDelegateTo).toHaveLength(0);
     });
 
     it('delegation targets are valid agent IDs', () => {
@@ -242,19 +186,15 @@ describe('Agents', () => {
       }
     });
 
-    it('delegation flows in one direction: reader -> writer -> commerce', () => {
+    it('delegation flows in one direction: reader -> writer', () => {
       const reader = getAgentProfile('reader')!;
       const writer = getAgentProfile('writer')!;
-      const commerce = getAgentProfile('commerce')!;
 
       // Forward direction exists
       expect(reader.canDelegateTo).toContain('writer');
-      expect(writer.canDelegateTo).toContain('commerce');
 
       // Reverse direction does not exist
       expect(writer.canDelegateTo).not.toContain('reader');
-      expect(commerce.canDelegateTo).not.toContain('writer');
-      expect(commerce.canDelegateTo).not.toContain('reader');
     });
   });
 });

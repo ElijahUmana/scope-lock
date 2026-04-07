@@ -17,11 +17,9 @@ import {
   RefreshCw,
   GitBranch,
   Mail,
-  MessageSquare,
   Calendar,
   ListTodo,
   Search,
-  ShoppingCart,
   User,
   Globe,
   Network,
@@ -79,27 +77,6 @@ const SERVICE_MAP: Record<string, ServiceMeta> = {
     bgColor: 'bg-red-500/10',
     borderColor: 'border-red-500/30',
   },
-  github: {
-    label: 'GitHub',
-    icon: <GitBranch className="h-5 w-5" />,
-    color: 'text-purple-400',
-    bgColor: 'bg-purple-500/10',
-    borderColor: 'border-purple-500/30',
-  },
-  'sign-in-with-slack': {
-    label: 'Slack',
-    icon: <MessageSquare className="h-5 w-5" />,
-    color: 'text-emerald-400',
-    bgColor: 'bg-emerald-500/10',
-    borderColor: 'border-emerald-500/30',
-  },
-  slack: {
-    label: 'Slack',
-    icon: <MessageSquare className="h-5 w-5" />,
-    color: 'text-emerald-400',
-    bgColor: 'bg-emerald-500/10',
-    borderColor: 'border-emerald-500/30',
-  },
   auth0: {
     label: 'Auth0',
     icon: <Shield className="h-5 w-5" />,
@@ -116,7 +93,7 @@ const SERVICE_MAP: Record<string, ServiceMeta> = {
   },
 };
 
-const ALL_SERVICES = ['google-oauth2', 'github', 'sign-in-with-slack'] as const;
+const ALL_SERVICES = ['google-oauth2'] as const;
 
 function getServiceMeta(connection: string): ServiceMeta {
   return (
@@ -190,10 +167,6 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   getCalendarEventsTool: <Calendar className="h-4 w-4 text-blue-400" />,
   getTasksTool: <ListTodo className="h-4 w-4 text-green-400" />,
   createTasksTool: <ListTodo className="h-4 w-4 text-green-400" />,
-  listRepositories: <GitBranch className="h-4 w-4 text-purple-400" />,
-  listGitHubEvents: <Activity className="h-4 w-4 text-purple-400" />,
-  listSlackChannels: <MessageSquare className="h-4 w-4 text-emerald-400" />,
-  shopOnlineTool: <ShoppingCart className="h-4 w-4 text-yellow-400" />,
   getUserInfoTool: <User className="h-4 w-4 text-blue-400" />,
   serpApiTool: <Search className="h-4 w-4 text-orange-400" />,
 };

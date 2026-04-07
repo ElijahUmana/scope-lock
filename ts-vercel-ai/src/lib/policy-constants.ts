@@ -24,6 +24,8 @@ export const POLICY_RULES: PolicyRule[] = [
   // AMBER — write operations (warn-and-proceed)
   { toolName: 'gmailDraftTool', level: 'AMBER', action: 'warn-and-proceed', reason: 'Write operation — creates Gmail draft' },
   { toolName: 'createTasksTool', level: 'AMBER', action: 'warn-and-proceed', reason: 'Write operation — creates Google Task' },
+  { toolName: 'deleteTaskTool', level: 'AMBER', action: 'warn-and-proceed', reason: 'Write operation — deletes Google Task' },
+  { toolName: 'completeTaskTool', level: 'AMBER', action: 'warn-and-proceed', reason: 'Write operation — completes Google Task' },
 
   // Disabled features — kept for policy engine evaluation/tests but hidden from display.
   // GitHub, Slack, and Commerce integrations are not currently enabled.

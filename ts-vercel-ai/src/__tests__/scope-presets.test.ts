@@ -52,7 +52,7 @@ describe('Scope Presets', () => {
       expect(preset).toBeDefined();
     });
 
-    it('has all tools including writes and commerce', () => {
+    it('has read and write tools', () => {
       const preset = getPreset('productivity')!;
       expect(preset.allowedTools).toContain('gmailSearchTool');
       expect(preset.allowedTools).toContain('getCalendarEventsTool');
@@ -60,7 +60,10 @@ describe('Scope Presets', () => {
       expect(preset.allowedTools).toContain('getUserInfoTool');
       expect(preset.allowedTools).toContain('gmailDraftTool');
       expect(preset.allowedTools).toContain('createTasksTool');
-      expect(preset.allowedTools).toContain('shopOnlineTool');
+      // Disabled features should not be in presets
+      expect(preset.allowedTools).not.toContain('shopOnlineTool');
+      expect(preset.allowedTools).not.toContain('listRepositories');
+      expect(preset.allowedTools).not.toContain('listGitHubEvents');
     });
 
     it('has RED risk threshold', () => {
@@ -106,9 +109,7 @@ describe('Scope Presets', () => {
       expect(tools).toContain('getCalendarEventsTool');
       expect(tools).toContain('getTasksTool');
       expect(tools).toContain('getUserInfoTool');
-      expect(tools).toContain('listRepositories');
-      expect(tools).toContain('listGitHubEvents');
-      expect(tools.length).toBe(6);
+      expect(tools.length).toBe(4);
     });
 
     it('returns all tools for productivity', () => {
@@ -119,10 +120,7 @@ describe('Scope Presets', () => {
       expect(tools).toContain('getUserInfoTool');
       expect(tools).toContain('gmailDraftTool');
       expect(tools).toContain('createTasksTool');
-      expect(tools).toContain('shopOnlineTool');
-      expect(tools).toContain('listRepositories');
-      expect(tools).toContain('listGitHubEvents');
-      expect(tools.length).toBe(9);
+      expect(tools.length).toBe(6);
     });
 
     it('returns empty array for invalid preset ID', () => {

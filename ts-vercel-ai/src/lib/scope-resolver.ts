@@ -36,11 +36,7 @@ const TOOL_METADATA: Record<
   getCalendarEventsTool: { scopes: ['calendar.events'], connection: 'google-oauth2', credentialsContext: 'thread' },
   getTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
   createTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
-  listRepositories: { scopes: ['repo'], connection: 'github', credentialsContext: 'tool-call' },
-  listGitHubEvents: { scopes: ['events'], connection: 'github', credentialsContext: 'tool-call' },
-  listSlackChannels: { scopes: ['channels:read'], connection: 'slack', credentialsContext: 'tool-call' },
   getUserInfoTool: { scopes: ['openid', 'profile'], connection: 'auth0', credentialsContext: 'thread' },
-  shopOnlineTool: { scopes: ['product:buy'], connection: 'ciba', credentialsContext: 'tool-call' },
 };
 
 // --- Risk ordering ---

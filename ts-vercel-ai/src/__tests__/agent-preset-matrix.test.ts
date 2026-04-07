@@ -18,26 +18,25 @@ const AGENT_IDS = AGENT_PROFILES.map((a) => a.id);
 const PRESET_IDS = SCOPE_PRESETS.map((p) => p.id);
 
 /**
- * Expected tool counts for the full 3x3 matrix.
+ * Expected tool counts for the full 2x3 matrix.
  *
- * Reader tools (6): gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool, listRepositories, listGitHubEvents
+ * Reader tools (4): gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool
  * Writer tools (2): gmailDraftTool, createTasksTool
- * Commerce tools (1): shopOnlineTool
  *
  * Lockdown allows: [] (0)
- * Privacy allows: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool, listRepositories, listGitHubEvents (6)
- * Productivity allows: all 9
+ * Privacy allows: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool (4)
+ * Productivity allows: all 6
  */
 const EXPECTED_MATRIX: Record<string, Record<string, { count: number; tools: string[] }>> = {
   reader: {
     lockdown: { count: 0, tools: [] },
     privacy: {
-      count: 6,
-      tools: ['gmailSearchTool', 'getCalendarEventsTool', 'getTasksTool', 'getUserInfoTool', 'listRepositories', 'listGitHubEvents'],
+      count: 4,
+      tools: ['gmailSearchTool', 'getCalendarEventsTool', 'getTasksTool', 'getUserInfoTool'],
     },
     productivity: {
-      count: 6,
-      tools: ['gmailSearchTool', 'getCalendarEventsTool', 'getTasksTool', 'getUserInfoTool', 'listRepositories', 'listGitHubEvents'],
+      count: 4,
+      tools: ['gmailSearchTool', 'getCalendarEventsTool', 'getTasksTool', 'getUserInfoTool'],
     },
   },
   writer: {
@@ -45,14 +44,9 @@ const EXPECTED_MATRIX: Record<string, Record<string, { count: number; tools: str
     privacy: { count: 0, tools: [] },
     productivity: { count: 2, tools: ['gmailDraftTool', 'createTasksTool'] },
   },
-  commerce: {
-    lockdown: { count: 0, tools: [] },
-    privacy: { count: 0, tools: [] },
-    productivity: { count: 1, tools: ['shopOnlineTool'] },
-  },
 };
 
-describe('Agent + Preset full matrix (3 agents x 3 presets = 9 combinations)', () => {
+describe('Agent + Preset full matrix (2 agents x 3 presets = 6 combinations)', () => {
   for (const agentId of AGENT_IDS) {
     for (const presetId of PRESET_IDS) {
       const expected = EXPECTED_MATRIX[agentId]?.[presetId];

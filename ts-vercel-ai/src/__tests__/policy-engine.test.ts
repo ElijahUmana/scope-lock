@@ -97,12 +97,13 @@ describe('Policy Engine', () => {
       expect(rules.length).toBeGreaterThan(0);
     });
 
-    it('contains GREEN, AMBER, and RED rules', () => {
+    it('contains GREEN and AMBER rules (RED tools are hidden)', () => {
       const rules = getPolicyRules();
       const levels = new Set(rules.map((r) => r.level));
       expect(levels.has('GREEN')).toBe(true);
       expect(levels.has('AMBER')).toBe(true);
-      expect(levels.has('RED')).toBe(true);
+      // RED tools (shopOnlineTool) are hidden from getPolicyRules
+      expect(levels.has('RED')).toBe(false);
     });
 
     it('returns a copy (not the internal array)', () => {

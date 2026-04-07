@@ -20,16 +20,14 @@ describe('Scope Presets + Agent Integration', () => {
   describe('Reader agent + Privacy preset', () => {
     it('returns intersection of their tools', () => {
       const effective = getEffectiveTools('reader', 'privacy');
-      // Reader has: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool, listRepositories, listGitHubEvents
-      // Privacy has: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool, listRepositories, listGitHubEvents
-      // Intersection = all 6
+      // Reader has: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool
+      // Privacy has: gmailSearchTool, getCalendarEventsTool, getTasksTool, getUserInfoTool
+      // Intersection = all 4
       expect(effective).toContain('gmailSearchTool');
       expect(effective).toContain('getCalendarEventsTool');
       expect(effective).toContain('getTasksTool');
       expect(effective).toContain('getUserInfoTool');
-      expect(effective).toContain('listRepositories');
-      expect(effective).toContain('listGitHubEvents');
-      expect(effective).toHaveLength(6);
+      expect(effective).toHaveLength(4);
     });
   });
 
@@ -68,27 +66,6 @@ describe('Scope Presets + Agent Integration', () => {
     });
   });
 
-  describe('Commerce agent + Privacy preset', () => {
-    it('returns 0 tools (shopOnlineTool not in privacy)', () => {
-      const effective = getEffectiveTools('commerce', 'privacy');
-      expect(effective).toHaveLength(0);
-    });
-  });
-
-  describe('Commerce agent + Productivity preset', () => {
-    it('returns shopOnlineTool', () => {
-      const effective = getEffectiveTools('commerce', 'productivity');
-      expect(effective).toEqual(['shopOnlineTool']);
-    });
-  });
-
-  describe('Commerce agent + Lockdown preset', () => {
-    it('returns 0 tools', () => {
-      const effective = getEffectiveTools('commerce', 'lockdown');
-      expect(effective).toHaveLength(0);
-    });
-  });
-
   describe('Reader agent + Productivity preset', () => {
     it('returns reader tools (all are in productivity)', () => {
       const effective = getEffectiveTools('reader', 'productivity');
@@ -96,9 +73,7 @@ describe('Scope Presets + Agent Integration', () => {
       expect(effective).toContain('getCalendarEventsTool');
       expect(effective).toContain('getTasksTool');
       expect(effective).toContain('getUserInfoTool');
-      expect(effective).toContain('listRepositories');
-      expect(effective).toContain('listGitHubEvents');
-      expect(effective).toHaveLength(6);
+      expect(effective).toHaveLength(4);
     });
   });
 

@@ -12,12 +12,12 @@ describe('Scope Resolver', () => {
       expect(plan.requirements[0].credentialsContext).toBe('thread');
     });
 
-    it('resolves shopOnlineTool to correct scopes', () => {
+    it('resolves unknown tool to AMBER defaults', () => {
       const plan = resolveScopes(['shopOnlineTool']);
       expect(plan.requirements).toHaveLength(1);
-      expect(plan.requirements[0].scopes).toContain('product:buy');
-      expect(plan.requirements[0].connection).toBe('ciba');
-      expect(plan.requirements[0].riskLevel).toBe('RED');
+      expect(plan.requirements[0].scopes).toEqual([]);
+      expect(plan.requirements[0].connection).toBe('unknown');
+      expect(plan.requirements[0].riskLevel).toBe('AMBER');
       expect(plan.requirements[0].credentialsContext).toBe('tool-call');
     });
 
@@ -44,8 +44,8 @@ describe('Scope Resolver', () => {
     });
 
     it('counts distinct connections', () => {
-      const plan = resolveScopes(['gmailSearchTool', 'listRepositories', 'listSlackChannels']);
-      expect(plan.estimatedConnections).toBe(3); // google-oauth2, github, slack
+      const plan = resolveScopes(['gmailSearchTool', 'getUserInfoTool']);
+      expect(plan.estimatedConnections).toBe(2); // google-oauth2, auth0
     });
   });
 
@@ -60,9 +60,9 @@ describe('Scope Resolver', () => {
       expect(plan.maxRiskLevel).toBe('AMBER');
     });
 
-    it('RED when any tool is RED', () => {
+    it('AMBER when any tool is unknown (shopOnlineTool removed from resolver)', () => {
       const plan = resolveScopes(['gmailSearchTool', 'shopOnlineTool']);
-      expect(plan.maxRiskLevel).toBe('RED');
+      expect(plan.maxRiskLevel).toBe('AMBER');
     });
   });
 
@@ -72,14 +72,14 @@ describe('Scope Resolver', () => {
       expect(plan.requiresStepUp).toBe(false);
     });
 
-    it('true when any RED tool is included', () => {
+    it('false when shopOnlineTool is included (no longer RED in resolver)', () => {
       const plan = resolveScopes(['gmailSearchTool', 'shopOnlineTool']);
-      expect(plan.requiresStepUp).toBe(true);
+      expect(plan.requiresStepUp).toBe(false);
     });
 
-    it('true when only RED tools', () => {
+    it('false when only shopOnlineTool (treated as AMBER unknown)', () => {
       const plan = resolveScopes(['shopOnlineTool']);
-      expect(plan.requiresStepUp).toBe(true);
+      expect(plan.requiresStepUp).toBe(false);
     });
   });
 
@@ -123,10 +123,10 @@ describe('Scope Resolver', () => {
       expect(formatted).toContain('shopOnlineTool');
     });
 
-    it('includes step-up warning for RED plans', () => {
+    it('does not include step-up warning for shopOnlineTool (no longer RED)', () => {
       const plan = resolveScopes(['shopOnlineTool']);
       const formatted = formatAuthorizationPlan(plan);
-      expect(formatted).toContain('step-up authentication');
+      expect(formatted).not.toContain('step-up authentication');
     });
 
     it('does not include step-up warning for non-RED plans', () => {

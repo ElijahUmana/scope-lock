@@ -142,15 +142,6 @@ function runAssertions(): SecurityAssertion[] {
     details: "withGmailWrite configured with credentialsContext: 'tool-call' — isolated per invocation",
   });
 
-  // 12. GitHub uses per-call isolation
-  // Verified by reading the auth0-ai.ts config: withGitHubConnection has credentialsContext: 'tool-call'
-  assertions.push({
-    name: 'GitHub uses per-call isolation',
-    category: 'credential',
-    passed: true,
-    details: "withGitHubConnection configured with credentialsContext: 'tool-call' — maximum isolation for external service",
-  });
-
   // ── AUDIT ────────────────────────────────────────────────────────────
 
   // 13. Audit store exists and is functional

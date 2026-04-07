@@ -325,7 +325,7 @@ export default function SandboxContent() {
           ) : (
             <RefreshCw className="w-4 h-4" />
           )}
-          {state.status === 'running' ? 'Running 14 Assertions...' : 'Run All Tests'}
+          {state.status === 'running' ? 'Running Security Assertions...' : 'Run All Tests'}
         </button>
         {state.lastRunAt && state.status !== 'running' && (
           <span className="text-[11px] text-white/30">

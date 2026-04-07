@@ -31,7 +31,6 @@ const ALL_TOOL_NAMES = [
   'getCalendarEventsTool',
   'getTasksTool',
   'createTasksTool',
-  'shopOnlineTool',
 ];
 
 // ---- Tool filtering logic mirrored from the chat route ----
@@ -134,9 +133,9 @@ describe('Chat Route Integration', () => {
         ]);
       });
 
-      it('productivity preset returns all 7 tools', () => {
+      it('productivity preset returns all 6 tools', () => {
         const tools = getFilteredToolNames(null, 'productivity');
-        expect(tools).toHaveLength(7);
+        expect(tools).toHaveLength(6);
       });
 
       it('lockdown preset returns 0 tools', () => {
@@ -192,19 +191,9 @@ describe('Chat Route Integration', () => {
       });
     });
 
-    describe('commerce agentId', () => {
-      it('privacy preset returns 0 tools (shopOnlineTool not in privacy)', () => {
-        const tools = getFilteredToolNames('commerce', 'privacy');
-        expect(tools).toHaveLength(0);
-      });
-
-      it('productivity preset returns only shopOnlineTool', () => {
+    describe('commerce agentId (removed)', () => {
+      it('returns 0 tools with any preset (agent does not exist)', () => {
         const tools = getFilteredToolNames('commerce', 'productivity');
-        expect(tools).toEqual(['shopOnlineTool']);
-      });
-
-      it('lockdown preset returns 0 tools', () => {
-        const tools = getFilteredToolNames('commerce', 'lockdown');
         expect(tools).toHaveLength(0);
       });
     });

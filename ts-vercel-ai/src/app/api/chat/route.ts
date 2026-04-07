@@ -14,7 +14,7 @@ import { serpApiTool } from '@/lib/tools/serpapi';
 import { getUserInfoTool } from '@/lib/tools/user-info';
 import { gmailDraftTool, gmailSearchTool } from '@/lib/tools/gmail';
 import { getCalendarEventsTool } from '@/lib/tools/google-calender';
-import { getTasksTool, createTasksTool } from '@/lib/tools/google-tasks';
+import { getTasksTool, createTasksTool, deleteTaskTool, completeTaskTool } from '@/lib/tools/google-tasks';
 // shopOnlineTool, listRepositories, listGitHubEvents disabled — require CIBA/GitHub Token Vault config
 import { logToolCall } from '@/lib/audit';
 import { recordScopeRequest } from '@/lib/actions/audit';
@@ -130,6 +130,8 @@ const TOOL_SCOPE_MAP: Record<string, { scopes: string[]; connection: string; cre
   getTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
   createTasksTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'thread' },
   getUserInfoTool: { scopes: ['openid', 'profile'], connection: 'auth0', credentialsContext: 'thread' },
+  deleteTaskTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'tool-call' },
+  completeTaskTool: { scopes: ['tasks'], connection: 'google-oauth2', credentialsContext: 'tool-call' },
 };
 
 const UNKNOWN_META = { scopes: [] as string[], connection: 'unknown', credentialsContext: 'unknown' };
@@ -143,6 +145,8 @@ const ALL_TOOLS: Record<string, any> = {
   getCalendarEventsTool,
   getTasksTool,
   createTasksTool,
+  deleteTaskTool,
+  completeTaskTool,
 };
 
 const ALL_TOOL_NAMES = Object.keys(ALL_TOOLS);
